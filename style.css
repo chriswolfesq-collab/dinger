@@ -1,18 +1,20 @@
 :root {
-  --bg: #081810;
-  --bg-alt: #0e2318;
-  --card: #143526;
-  --card-hi: #1a4230;
-  --card-border: #2a5c40;
-  --accent: #ffc93c;
-  --accent-soft: #ffe08a;
-  --accent-dim: #b8860f;
-  --green: #35c977;
-  --green-dark: #1f8a51;
-  --red: #ff6b6b;
-  --red-dim: #a83c3c;
-  --text: #f3fbf5;
-  --text-dim: #8fae9d;
+  --bg: #041226;
+  --bg-alt: #071b36;
+  --card: #0b2447;
+  --card-hi: #12386a;
+  --card-border: #2a5f9e;
+  --accent: #bf0d3e;
+  --accent-soft: #f5f8ff;
+  --accent-dim: #7f1232;
+  --green: #bf0d3e;
+  --green-dark: #8c0b30;
+  --red: #e83a59;
+  --red-dim: #8f1432;
+  --text: #f8fbff;
+  --text-dim: #a9bdd8;
+  --blue: #1f66b1;
+  --blue-soft: #d8e8ff;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'Space Mono', 'Courier New', monospace;
   --font-display: 'Bebas Neue', var(--font-body);
@@ -33,7 +35,8 @@ body {
 
   background-color: var(--bg);
   background-image:
-    radial-gradient(circle at 50% -10%, rgba(255, 201, 60, 0.10), transparent 45%),
+    radial-gradient(circle at 50% -10%, rgba(191, 13, 62, 0.22), transparent 42%),
+    radial-gradient(circle at 12% 8%, rgba(31, 102, 177, 0.18), transparent 34%),
     radial-gradient(circle at 50% 0%, var(--bg-alt), var(--bg) 65%),
     repeating-linear-gradient(
       115deg,
@@ -74,8 +77,8 @@ h1 {
   letter-spacing: 0.1em;
   font-size: 38px;
   margin: 0;
-  color: var(--accent);
-  text-shadow: 0 0 18px rgba(255, 201, 60, 0.35), 0 2px 0 rgba(0, 0, 0, 0.4);
+  color: var(--accent-soft);
+  text-shadow: 2px 2px 0 var(--accent), 0 0 18px rgba(31, 102, 177, 0.45);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -110,7 +113,7 @@ h1 .ball {
 
 .icon-btn:hover {
   background: var(--card-hi);
-  border-color: var(--accent-dim);
+  border-color: var(--accent);
   transform: translateY(-1px);
 }
 
@@ -150,7 +153,7 @@ h1 .ball {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: linear-gradient(180deg, rgba(26, 66, 48, 0.92), rgba(14, 35, 24, 0.92));
+  background: linear-gradient(180deg, rgba(18, 56, 106, 0.94), rgba(7, 27, 54, 0.94));
   border: 1px solid var(--card-border);
   border-radius: 16px;
   padding: 14px 16px;
@@ -168,17 +171,17 @@ h1 .ball {
   justify-content: center;
   border: 3px solid var(--accent-dim);
   background:
-    radial-gradient(circle at 50% 32%, rgba(255, 224, 138, 0.18), transparent 34%),
+    radial-gradient(circle at 50% 32%, rgba(248, 251, 255, 0.20), transparent 34%),
     linear-gradient(180deg, var(--card), var(--bg-alt));
-  box-shadow: 0 0 0 4px rgba(255, 201, 60, 0.10);
+  box-shadow: 0 0 0 4px rgba(191, 13, 62, 0.18);
 }
 
 .mystery-photo span {
   font-family: var(--font-display);
   font-size: 52px;
   line-height: 1;
-  color: var(--accent);
-  text-shadow: 0 0 18px rgba(255, 201, 60, 0.45);
+  color: var(--accent-soft);
+  text-shadow: 2px 2px 0 var(--accent), 0 0 18px rgba(31, 102, 177, 0.45);
   transform: translateY(2px);
 }
 
@@ -244,7 +247,7 @@ h1 .ball {
   font-weight: 700;
   color: var(--accent);
   line-height: 1.1;
-  text-shadow: 0 0 20px rgba(255, 201, 60, 0.55);
+  text-shadow: 0 0 20px rgba(191, 13, 62, 0.5);
   transition: transform 0.15s ease;
 }
 
@@ -280,8 +283,8 @@ h1 .ball {
 .clue-num {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--bg);
-  background: var(--accent-dim);
+  color: var(--accent-soft);
+  background: var(--accent);
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -302,7 +305,7 @@ h1 .ball {
 .clue-new {
   animation: flip-reveal 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 6px 20px -8px rgba(255, 201, 60, 0.4);
+  box-shadow: 0 0 0 1px var(--accent), 0 6px 20px -8px rgba(191, 13, 62, 0.42);
 }
 
 @keyframes flip-reveal {
@@ -331,7 +334,7 @@ h1 .ball {
 #guess-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(255, 201, 60, 0.2);
+  box-shadow: 0 0 0 3px rgba(191, 13, 62, 0.24);
 }
 
 #guess-input.shake { animation: shake 0.35s; }
@@ -347,12 +350,12 @@ h1 .ball {
   border-radius: 12px;
   border: none;
   background: linear-gradient(180deg, var(--green), var(--green-dark));
-  color: #06251a;
+  color: var(--accent-soft);
   font-weight: 800;
   font-size: 15px;
   cursor: pointer;
   transition: transform 0.15s ease, filter 0.15s ease;
-  box-shadow: 0 6px 16px -6px rgba(53, 201, 119, 0.5);
+  box-shadow: 0 6px 16px -6px rgba(191, 13, 62, 0.55);
 }
 
 #guess-form button:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
@@ -391,10 +394,10 @@ h1 .ball {
 
 .secondary-btn {
   background: var(--card);
-  color: var(--accent-soft);
+  color: var(--blue-soft);
 }
 
-.secondary-btn:hover:not(:disabled) { background: var(--card-hi); border-color: var(--accent-dim); transform: translateY(-1px); }
+.secondary-btn:hover:not(:disabled) { background: var(--card-hi); border-color: var(--blue); transform: translateY(-1px); }
 .secondary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .ghost-btn {
@@ -405,11 +408,11 @@ h1 .ball {
 .ghost-btn:hover:not(:disabled) { color: var(--red); border-color: var(--red-dim); }
 
 .primary-btn {
-  background: linear-gradient(180deg, var(--accent-soft), var(--accent));
-  color: #2c1a00;
+  background: linear-gradient(180deg, #e11a4f, var(--accent));
+  color: var(--accent-soft);
   border: none;
   width: 100%;
-  box-shadow: 0 8px 20px -8px rgba(255, 201, 60, 0.5);
+  box-shadow: 0 8px 20px -8px rgba(191, 13, 62, 0.55);
 }
 
 .primary-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
@@ -441,7 +444,7 @@ h1 .ball {
   height: 128px;
   border-radius: 50%;
   border: 4px solid var(--accent);
-  box-shadow: 0 0 0 4px rgba(255, 201, 60, 0.18), 0 10px 24px -8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 4px rgba(191, 13, 62, 0.18), 0 10px 24px -8px rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -452,7 +455,7 @@ h1 .ball {
 
 .result-photo-wrap.photo-loss .result-photo-ring {
   border-color: var(--red);
-  box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.18), 0 10px 24px -8px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 4px rgba(232, 58, 89, 0.18), 0 10px 24px -8px rgba(0, 0, 0, 0.6);
 }
 
 .result-photo {
@@ -502,7 +505,7 @@ h1 .ball {
   font-size: 48px;
   color: var(--accent);
   font-weight: 700;
-  text-shadow: 0 0 20px rgba(255, 201, 60, 0.5);
+  text-shadow: 0 0 20px rgba(191, 13, 62, 0.5);
 }
 
 .result-grid {
@@ -526,7 +529,7 @@ h1 .ball {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(3, 10, 6, 0.72);
+  background: rgba(4, 18, 38, 0.78);
   backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
