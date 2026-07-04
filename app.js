@@ -2,6 +2,7 @@
 
 const PROGRESS_KEY_PREFIX = 'dinger_progress_v1_';
 const STATS_KEY = 'dinger_stats_v1';
+const HELP_SEEN_KEY = 'dinger_help_seen_v1';
 
 function loadProgress(dateStr) {
   try {
@@ -81,7 +82,6 @@ function cacheDom() {
     'share-btn', 'next-puzzle-timer', 'stats-modal', 'stats-grid', 'help-modal',
     'stats-btn', 'help-btn', 'close-stats', 'close-stats-2', 'close-help', 'close-help-2',
     'player-photo-wrap', 'player-photo', 'player-photo-placeholder',
-    'reset-today-btn', 'reset-all-btn',
   ].forEach(id => { dom[id] = document.getElementById(id); });
 }
 
@@ -329,6 +329,16 @@ function toggleModal(modal, show) {
   modal.classList.toggle('hidden', !show);
 }
 
+function showFirstRunHelp() {
+  try {
+    if (localStorage.getItem(HELP_SEEN_KEY)) return;
+    localStorage.setItem(HELP_SEEN_KEY, 'true');
+    toggleModal(dom['help-modal'], true);
+  } catch {
+    toggleModal(dom['help-modal'], true);
+  }
+}
+
 function attachEvents() {
   dom['guess-form'].addEventListener('submit', handleGuessSubmit);
   dom['pass-btn'].addEventListener('click', handlePass);
@@ -364,6 +374,7 @@ function init() {
     renderResultScreen();
   } else {
     renderGameScreen();
+    showFirstRunHelp();
   }
 }
 

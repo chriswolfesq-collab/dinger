@@ -21,6 +21,11 @@
 
   <div id="puzzle-number" class="puzzle-number">Puzzle #—</div>
 
+  <section class="game-intro" aria-label="Game summary">
+    <h2>Guess today's mystery MLB player.</h2>
+    <p>Use the clues to name the player. Start with 100 points, reveal more clues if you need them, and try to solve before your score runs out.</p>
+  </section>
+
   <main id="game-screen">
     <div class="score-display">
       <span class="score-label">Score</span>
@@ -72,18 +77,34 @@
     <div class="modal-content">
       <button class="close-btn" id="close-help">×</button>
       <h2>How to Play</h2>
-      <ol class="help-list">
-        <li>Every day there's one secret MLB player.</li>
-        <li>Ten clues appear, vaguest first, most revealing last.</li>
-        <li>Guess anytime, or reveal the next clue for −10 points.</li>
-        <li>A wrong guess costs −15 points. Solve it fast for a higher score!</li>
-      </ol>
-      <button id="close-help-2" class="primary-btn">Got it</button>
+      <p class="help-summary">Dinger is a daily baseball guessing game. Your goal is to identify one mystery MLB player from a ladder of clues.</p>
+      <div class="help-section">
+        <h3>Your Goal</h3>
+        <p>Type the player’s name and press Guess. Full names work, and last names work when that last name belongs to only one player in this game.</p>
+      </div>
+      <div class="help-section">
+        <h3>Clues</h3>
+        <p>You start with one clue. There are ten total clues, moving from broad hints to more revealing facts like teams, nicknames, records, jersey numbers, or signature moments.</p>
+      </div>
+      <div class="help-section">
+        <h3>Scoring</h3>
+        <ul class="help-list">
+          <li>You start with 100 points.</li>
+          <li>Revealing another clue costs 10 points.</li>
+          <li>A wrong guess costs 15 points.</li>
+          <li>Solving earlier gives you a better score.</li>
+        </ul>
+      </div>
+      <div class="help-section">
+        <h3>Daily Play</h3>
+        <p>Everyone gets the same puzzle for the day. Once you finish, you can share your result without spoiling the answer.</p>
+      </div>
+      <button id="close-help-2" class="primary-btn">Play</button>
     </div>
   </section>
 </div>
-<script src="players.js?v=5" defer></script>
-<script src="game.js?v=5" defer></script>
-<script src="app.js?v=5" defer></script>
+<script src="players.js?v=6" defer></script>
+<script src="game.js?v=6" defer></script>
+<script src="app.js?v=6" defer></script>
 </body>
 </html>
