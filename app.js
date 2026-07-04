@@ -217,6 +217,10 @@ function buildShareText() {
   return `⚾ Dinger #${today.puzzleNumber} — ${squares} ${progress.score} pts`;
 }
 
+function resetShareButtonSoon() {
+  setTimeout(() => { dom['share-btn'].textContent = 'Share Result'; }, 2000);
+}
+
 function renderResultScreen() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
@@ -299,13 +303,33 @@ function handleGiveUp() {
 
 async function handleShare() {
   const text = buildShareText();
+  const shareData = {
+    title: `Dinger #${today.puzzleNumber}`,
+    text,
+    url: window.location.href,
+  };
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+    try {
+      await navigator.share(shareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      }
+    }
+    return;
+  }
+
   try {
     await navigator.clipboard.writeText(text);
-    dom['share-btn'].textContent = '✓ Copied!';
+    dom['share-btn'].textContent = 'Copied result!';
   } catch {
     dom['share-btn'].textContent = text;
   }
-  setTimeout(() => { dom['share-btn'].textContent = '📋 Copy Share Text'; }, 2000);
+  resetShareButtonSoon();
 }
 
 function renderStats() {
