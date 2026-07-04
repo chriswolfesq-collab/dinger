@@ -146,6 +146,61 @@ h1 .ball {
   line-height: 1.45;
 }
 
+.mystery-player {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(180deg, rgba(26, 66, 48, 0.92), rgba(14, 35, 24, 0.92));
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.mystery-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid var(--accent-dim);
+  background:
+    radial-gradient(circle at 50% 32%, rgba(255, 224, 138, 0.18), transparent 34%),
+    linear-gradient(180deg, var(--card), var(--bg-alt));
+  box-shadow: 0 0 0 4px rgba(255, 201, 60, 0.10);
+}
+
+.mystery-photo span {
+  font-family: var(--font-display);
+  font-size: 52px;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 0 18px rgba(255, 201, 60, 0.45);
+  transform: translateY(2px);
+}
+
+.mystery-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mystery-label {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.mystery-status {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .score-display {
   display: flex;
   flex-direction: column;
@@ -586,5 +641,8 @@ h1 .ball {
 @media (max-width: 380px) {
   h1 { font-size: 32px; }
   #score-value { font-size: 48px; }
+  .mystery-player { align-items: flex-start; }
+  .mystery-photo { width: 62px; height: 62px; }
+  .mystery-photo span { font-size: 46px; }
   .action-row { flex-direction: column; }
 }
