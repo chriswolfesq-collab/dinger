@@ -221,6 +221,138 @@ function resetShareButtonSoon() {
   setTimeout(() => { dom['share-btn'].textContent = 'Share Result'; }, 2000);
 }
 
+function gameShareUrl() {
+  return window.location.href.split('#')[0];
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+}
+
+function drawCenteredText(ctx, text, x, y, maxWidth, fontSize, fontFamily, color) {
+  ctx.fillStyle = color;
+  ctx.font = `800 ${fontSize}px ${fontFamily}`;
+  let size = fontSize;
+  while (ctx.measureText(text).width > maxWidth && size > 22) {
+    size -= 2;
+    ctx.font = `800 ${size}px ${fontFamily}`;
+  }
+  ctx.fillText(text, x, y);
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Unable to create share image'));
+    }, 'image/png');
+  });
+}
+
+async function buildShareImageFile() {
+  const size = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const link = gameShareUrl();
+  const clueCount = maxCluesFor(today.player);
+  const status = progress.solved
+    ? `Solved in ${progress.clueIndex}/${clueCount} clues`
+    : `Missed after ${progress.clueIndex}/${clueCount} clues`;
+
+  const bg = ctx.createLinearGradient(0, 0, size, size);
+  bg.addColorStop(0, '#041226');
+  bg.addColorStop(0.55, '#0b2447');
+  bg.addColorStop(1, '#12386a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
+  ctx.beginPath();
+  ctx.moveTo(0, 790);
+  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
+  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
+  ctx.lineTo(1080, 1080);
+  ctx.lineTo(0, 1080);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(0, 825);
+  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
+  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
+  for (let i = 0; i < 12; i += 1) {
+    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
+  }
+
+  roundRect(ctx, 90, 110, 900, 760, 36);
+  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
+  ctx.fill();
+  ctx.strokeStyle = '#2a5f9e';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
+  ctx.fillStyle = '#bf0d3e';
+  ctx.font = '800 30px Arial, sans-serif';
+  ctx.fillText(`DAILY MLB PLAYER GAME  •  PUZZLE #${today.puzzleNumber}`, 540, 292);
+
+  ctx.fillStyle = '#f5f8ff';
+  ctx.font = '900 150px Arial, sans-serif';
+  ctx.fillText(`${progress.score}`, 540, 430);
+  ctx.fillStyle = '#a9bdd8';
+  ctx.font = '800 34px Arial, sans-serif';
+  ctx.fillText('POINTS', 540, 520);
+
+  ctx.fillStyle = progress.solved ? '#f5f8ff' : '#e83a59';
+  ctx.font = '800 42px Arial, sans-serif';
+  ctx.fillText(status, 540, 600);
+
+  const blockSize = 48;
+  const gap = 14;
+  const totalWidth = progress.clueIndex * blockSize + (progress.clueIndex - 1) * gap;
+  let x = 540 - totalWidth / 2;
+  for (let i = 1; i <= progress.clueIndex; i += 1) {
+    roundRect(ctx, x, 665, blockSize, blockSize, 8);
+    ctx.fillStyle = i === progress.clueIndex
+      ? (progress.solved ? '#f5f8ff' : '#e83a59')
+      : '#bf0d3e';
+    ctx.fill();
+    if (i === progress.clueIndex) {
+      ctx.fillStyle = progress.solved ? '#041226' : '#f5f8ff';
+      ctx.font = '900 28px Arial, sans-serif';
+      ctx.fillText(progress.solved ? '✓' : '×', x + blockSize / 2, 690);
+    }
+    x += blockSize + gap;
+  }
+
+  ctx.fillStyle = '#d8e8ff';
+  ctx.font = '700 30px Arial, sans-serif';
+  ctx.fillText('Play at', 540, 780);
+  drawCenteredText(ctx, link, 540, 825, 760, 34, 'Arial, sans-serif', '#f5f8ff');
+
+  const blob = await canvasToBlob(canvas);
+  return new File([blob], `dinger-${today.puzzleNumber}.png`, { type: 'image/png' });
+}
+
 function renderResultScreen() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
@@ -303,11 +435,43 @@ function handleGiveUp() {
 
 async function handleShare() {
   const text = buildShareText();
+  const url = gameShareUrl();
+  let imageFile = null;
+  dom['share-btn'].disabled = true;
+  dom['share-btn'].textContent = 'Preparing...';
+
+  try {
+    imageFile = await buildShareImageFile();
+  } catch {
+    imageFile = null;
+  }
+
+  dom['share-btn'].disabled = false;
+
   const shareData = {
     title: `Dinger #${today.puzzleNumber}`,
-    text,
-    url: window.location.href,
+    text: `${text}\n${url}`,
+    url,
   };
+  const imageShareData = imageFile
+    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
+    : null;
+
+  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
+    try {
+      await navigator.share(imageShareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
+      }
+    }
+    return;
+  }
 
   if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
     try {
@@ -318,16 +482,18 @@ async function handleShare() {
       if (err && err.name !== 'AbortError') {
         dom['share-btn'].textContent = 'Share failed';
         resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
       }
     }
     return;
   }
 
   try {
-    await navigator.clipboard.writeText(text);
-    dom['share-btn'].textContent = 'Copied result!';
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
   } catch {
-    dom['share-btn'].textContent = text;
+    dom['share-btn'].textContent = `${text} ${url}`;
   }
   resetShareButtonSoon();
 }
