@@ -39,8 +39,23 @@ function normalize(str) {
     .trim();
 }
 
+function withoutSuffix(str) {
+  return normalize(str)
+    .replace(/\b(jr|jnr|junior|sr|senior|ii|iii|iv)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compact(str) {
+  return normalize(str).replace(/\s+/g, '');
+}
+
+function compactWithoutSuffix(str) {
+  return withoutSuffix(str).replace(/\s+/g, '');
+}
+
 function lastNameOf(fullName) {
-  const parts = fullName.trim().split(/\s+/);
+  const parts = withoutSuffix(fullName).split(/\s+/);
   return parts[parts.length - 1];
 }
 
@@ -70,20 +85,41 @@ function isUniqueLastName(player, allPlayers) {
   return count === 1;
 }
 
-function isCorrectGuess(rawGuess, player, allPlayers) {
-  const guess = normalize(rawGuess);
-  if (!guess) return false;
+function namesMatch(guess, candidate) {
+  if (guess.normal === candidate.normal) return true;
+  if (guess.compact === candidate.compact) return true;
+  if (guess.noSuffix && guess.noSuffix === candidate.noSuffix) return true;
+  if (guess.compactNoSuffix && guess.compactNoSuffix === candidate.compactNoSuffix) return true;
+  return false;
+}
 
-  const acceptList = player.accept.map(normalize);
-  if (acceptList.includes(guess)) return true;
+function guessShape(str) {
+  return {
+    normal: normalize(str),
+    compact: compact(str),
+    noSuffix: withoutSuffix(str),
+    compactNoSuffix: compactWithoutSuffix(str),
+  };
+}
+
+function isCorrectGuess(rawGuess, player, allPlayers) {
+  const guess = guessShape(rawGuess);
+  if (!guess.normal) return false;
+
+  const acceptList = player.accept.map(guessShape);
+  if (acceptList.some(candidate => namesMatch(guess, candidate))) return true;
 
   const lastName = normalize(lastNameOf(player.name));
-  if (guess === lastName && isUniqueLastName(player, allPlayers)) return true;
+  const uniqueLastName = isUniqueLastName(player, allPlayers);
+  if (uniqueLastName && namesMatch(guess, guessShape(lastName))) return true;
 
-  if (guess.length >= 4) {
-    const candidates = isUniqueLastName(player, allPlayers) ? [...acceptList, lastName] : acceptList;
+  if (guess.normal.length >= 4) {
+    const candidates = uniqueLastName ? [...acceptList, guessShape(lastName)] : acceptList;
     for (const candidate of candidates) {
-      if (Math.abs(candidate.length - guess.length) <= 2 && levenshtein(guess, candidate) <= 2) {
+      if (Math.abs(candidate.normal.length - guess.normal.length) <= 2 && levenshtein(guess.normal, candidate.normal) <= 2) {
+        return true;
+      }
+      if (Math.abs(candidate.compact.length - guess.compact.length) <= 2 && levenshtein(guess.compact, candidate.compact) <= 2) {
         return true;
       }
     }

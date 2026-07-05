@@ -79,7 +79,7 @@ function cacheDom() {
     'puzzle-number', 'score-value', 'clue-list', 'guess-form', 'guess-input',
     'feedback', 'pass-btn', 'giveup-btn', 'game-screen', 'result-screen',
     'result-title', 'result-player', 'result-score', 'result-grid', 'result-clues',
-    'share-btn', 'next-puzzle-timer', 'stats-modal', 'stats-grid', 'help-modal',
+    'result-summary', 'share-btn', 'next-puzzle-timer', 'stats-modal', 'stats-grid', 'help-modal',
     'stats-btn', 'help-btn', 'close-stats', 'close-stats-2', 'close-help', 'close-help-2',
     'player-photo-wrap', 'player-photo', 'player-photo-placeholder',
   ].forEach(id => { dom[id] = document.getElementById(id); });
@@ -214,7 +214,9 @@ function buildShareText() {
   let squares = '';
   for (let i = 1; i < progress.clueIndex; i += 1) squares += '🟨';
   squares += progress.solved ? '✅' : '❌';
-  return `⚾ Dinger #${today.puzzleNumber} — ${squares} ${progress.score} pts`;
+  const clueCount = maxCluesFor(today.player);
+  const status = progress.solved ? `${progress.clueIndex}/${clueCount}` : `X/${clueCount}`;
+  return `⚾ Dinger #${today.puzzleNumber} — ${squares} ${status} — ${progress.score} pts`;
 }
 
 function resetShareButtonSoon() {
@@ -270,6 +272,8 @@ async function buildShareImageFile() {
   const status = progress.solved
     ? `Solved in ${progress.clueIndex}/${clueCount} clues`
     : `Missed after ${progress.clueIndex}/${clueCount} clues`;
+  const stats = loadStats();
+  const streakText = `Current streak: ${stats.currentStreak}  •  Best: ${stats.maxStreak}`;
 
   const bg = ctx.createLinearGradient(0, 0, size, size);
   bg.addColorStop(0, '#041226');
@@ -326,12 +330,16 @@ async function buildShareImageFile() {
   ctx.font = '800 42px Arial, sans-serif';
   ctx.fillText(status, 540, 600);
 
+  ctx.fillStyle = '#a9bdd8';
+  ctx.font = '700 28px Arial, sans-serif';
+  ctx.fillText(streakText, 540, 638);
+
   const blockSize = 48;
   const gap = 14;
   const totalWidth = progress.clueIndex * blockSize + (progress.clueIndex - 1) * gap;
   let x = 540 - totalWidth / 2;
   for (let i = 1; i <= progress.clueIndex; i += 1) {
-    roundRect(ctx, x, 665, blockSize, blockSize, 8);
+    roundRect(ctx, x, 685, blockSize, blockSize, 8);
     ctx.fillStyle = i === progress.clueIndex
       ? (progress.solved ? '#f5f8ff' : '#e83a59')
       : '#bf0d3e';
@@ -339,15 +347,15 @@ async function buildShareImageFile() {
     if (i === progress.clueIndex) {
       ctx.fillStyle = progress.solved ? '#041226' : '#f5f8ff';
       ctx.font = '900 28px Arial, sans-serif';
-      ctx.fillText(progress.solved ? '✓' : '×', x + blockSize / 2, 690);
+      ctx.fillText(progress.solved ? '✓' : '×', x + blockSize / 2, 710);
     }
     x += blockSize + gap;
   }
 
   ctx.fillStyle = '#d8e8ff';
   ctx.font = '700 30px Arial, sans-serif';
-  ctx.fillText('Play at', 540, 780);
-  drawCenteredText(ctx, link, 540, 825, 760, 34, 'Arial, sans-serif', '#f5f8ff');
+  ctx.fillText('Play at', 540, 790);
+  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
 
   const blob = await canvasToBlob(canvas);
   return new File([blob], `dinger-${today.puzzleNumber}.png`, { type: 'image/png' });
@@ -365,6 +373,17 @@ function renderResultScreen() {
   for (let i = 1; i < progress.clueIndex; i += 1) squares += '🟨';
   squares += progress.solved ? '✅' : '❌';
   dom['result-grid'].textContent = squares;
+  const clueCount = maxCluesFor(today.player);
+  const finalClue = today.player.clues[progress.clueIndex - 1];
+  const firstClue = today.player.clues[0];
+  const outcome = progress.solved
+    ? `Solved in ${progress.clueIndex} of ${clueCount} clues`
+    : `Revealed ${progress.clueIndex} of ${clueCount} clues`;
+  dom['result-summary'].innerHTML = `
+    <div class="recap-stat"><span>${outcome}</span><strong>${progress.misses}</strong><em>Wrong guesses</em></div>
+    <div class="recap-stat"><span>Era</span><strong>${today.player.era}</strong><em>Career window</em></div>
+    <div class="recap-clue"><span>Clue trail</span><strong>${firstClue}</strong><em>Final clue shown: ${finalClue}</em></div>
+  `;
 
   dom['result-clues'].innerHTML = '';
   today.player.clues.slice(0, progress.clueIndex).forEach((word, i) => {
@@ -505,13 +524,51 @@ function renderStats() {
   const avgScore = solvedEntries.length
     ? Math.round(solvedEntries.reduce((sum, h) => sum + h.score, 0) / solvedEntries.length)
     : 0;
+  const distribution = Array.from({ length: CONFIG.maxClues }, (_, i) => {
+    const clueNumber = i + 1;
+    return solvedEntries.filter(h => h.cluesUsed === clueNumber).length;
+  });
+  const maxBucket = Math.max(1, ...distribution);
+  const recent = Object.entries(stats.history)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 8);
+  const distributionHtml = distribution.map((count, i) => {
+    const pct = Math.max(count ? 8 : 0, Math.round((count / maxBucket) * 100));
+    return `
+      <div class="guess-bar-row">
+        <span>${i + 1}</span>
+        <div class="guess-bar-track"><div class="guess-bar-fill" style="width: ${pct}%"></div></div>
+        <strong>${count}</strong>
+      </div>
+    `;
+  }).join('');
+  const recentHtml = recent.length
+    ? recent.map(([date, entry]) => `
+      <div class="history-row">
+        <span class="history-date">${date.slice(5).replace('-', '/')}</span>
+        <span class="history-result ${entry.solved ? 'win' : 'loss'}">${entry.solved ? 'Win' : 'Loss'}</span>
+        <span class="history-score">${entry.solved ? `${entry.score} pts` : '0 pts'}</span>
+        <span class="history-clues">${entry.cluesUsed}/${CONFIG.maxClues}</span>
+      </div>
+    `).join('')
+    : '<p class="empty-history">Finished games will show up here.</p>';
 
   dom['stats-grid'].innerHTML = `
-    <div class="stat"><span class="stat-value">${stats.played}</span><span class="stat-label">Played</span></div>
-    <div class="stat"><span class="stat-value">${winPct}%</span><span class="stat-label">Win rate</span></div>
-    <div class="stat"><span class="stat-value">${stats.currentStreak}</span><span class="stat-label">Current streak</span></div>
-    <div class="stat"><span class="stat-value">${stats.maxStreak}</span><span class="stat-label">Max streak</span></div>
-    <div class="stat"><span class="stat-value">${avgScore}</span><span class="stat-label">Avg score (solved)</span></div>
+    <div class="stat-row">
+      <div class="stat"><span class="stat-value">${stats.played}</span><span class="stat-label">Played</span></div>
+      <div class="stat"><span class="stat-value">${winPct}%</span><span class="stat-label">Win rate</span></div>
+      <div class="stat"><span class="stat-value">${stats.currentStreak}</span><span class="stat-label">Current streak</span></div>
+      <div class="stat"><span class="stat-value">${stats.maxStreak}</span><span class="stat-label">Max streak</span></div>
+      <div class="stat stat-wide"><span class="stat-value">${avgScore}</span><span class="stat-label">Avg score solved</span></div>
+    </div>
+    <section class="stats-section">
+      <h3>Guess Distribution</h3>
+      <div class="guess-bars">${distributionHtml}</div>
+    </section>
+    <section class="stats-section">
+      <h3>Recent Games</h3>
+      <div class="history-list">${recentHtml}</div>
+    </section>
   `;
 }
 
