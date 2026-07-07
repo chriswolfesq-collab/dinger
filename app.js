@@ -134,7 +134,7 @@ function defaultTimedProgress() {
 
 // currentEntry is {id, url} for the photo on screen right now (or null while
 // the very first photo of a run is still loading). skipped collects
-// {id, name} for the end-of-run "players you skipped" recap.
+// {id, name, url} for the end-of-run "players you skipped" recap.
 function defaultPhotoBlitzProgress() {
   return { queue: [], currentEntry: null, skipped: [], solved: 0, timeLeft: CONFIG.photoBlitzStartTime, running: false, finished: false };
 }
@@ -1115,7 +1115,7 @@ function handlePhotoBlitzSkip() {
   if (!photoBlitzProgress.running || !photoBlitzProgress.currentEntry) return;
   const player = photoBlitzCurrentPlayer();
   if (!player) return;
-  photoBlitzProgress.skipped.push({ id: player.id, name: player.name });
+  photoBlitzProgress.skipped.push({ id: player.id, name: player.name, url: photoBlitzProgress.currentEntry.url });
   advancePhotoBlitz(player, 'Skipped', 'skip');
 }
 
@@ -1205,7 +1205,12 @@ function renderPhotoBlitzResult() {
     dom['result-skipped'].classList.remove('hidden');
     dom['result-skipped'].innerHTML = `
       <h3>Players You Skipped</h3>
-      <ul class="skipped-list">${photoBlitzProgress.skipped.map(s => `<li>${s.name}</li>`).join('')}</ul>
+      <ul class="skipped-list">${photoBlitzProgress.skipped.map(s => `
+        <li>
+          <img class="skipped-photo" src="${s.url}" alt="${s.name}">
+          <span>${s.name}</span>
+        </li>
+      `).join('')}</ul>
     `;
   } else {
     dom['result-skipped'].classList.add('hidden');
