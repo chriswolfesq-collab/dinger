@@ -1,129 +1,5 @@
 // State, storage, rendering, and event wiring for Dinger.
 
-const PROGRESS_KEY_PREFIX = 'dinger_progress_v1_';
-const STATS_KEY = 'dinger_stats_v1';
-const HELP_SEEN_KEY = 'dinger_help_seen_v1';
-
-function loadProgress(dateStr) {
-  try {
-    const raw = localStorage.getItem(PROGRESS_KEY_PREFIX + dateStr);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveProgress(dateStr, state) {
-  localStorage.setItem(PROGRESS_KEY_PREFIX + dateStr, JSON.stringify(state));
-}
-
-function defaultStats() {
-  return { played: 0, wins: 0, currentStreak: 0, maxStreak: 0, history: {} };
-}
-
-function loadStats() {
-  try {
-    const raw = localStorage.getItem(STATS_KEY);
-    return raw ? JSON.parse(raw) : defaultStats();
-  } catch {
-    return defaultStats();
-  }
-}
-
-function saveStats(stats) {
-  localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-}
-
-function recalcStreaksFromHistory(stats) {
-  const dates = Object.keys(stats.history).sort();
-  let currentStreak = 0;
-  let maxStreak = 0;
-  let prevDate = null;
-  dates.forEach((date) => {
-    const entry = stats.history[date];
-    if (entry.solved) {
-      currentStreak = prevDate && daysBetween(prevDate, date) === 1 ? currentStreak + 1 : 1;
-      maxStreak = Math.max(maxStreak, currentStreak);
-    } else {
-      currentStreak = 0;
-    }
-    prevDate = date;
-  });
-  stats.currentStreak = currentStreak;
-  stats.maxStreak = maxStreak;
-}
-
-function recordResult(dateStr, solved, score, cluesUsed, misses) {
-  const stats = loadStats();
-  if (stats.history[dateStr]) return stats; // already recorded, don't double-count reloads
-  stats.history[dateStr] = { solved, score, cluesUsed, misses };
-  stats.played += 1;
-  if (solved) stats.wins += 1;
-  recalcStreaksFromHistory(stats);
-  saveStats(stats);
-  return stats;
-}
-
-function defaultProgress() {
-  return { clueIndex: 1, misses: 0, finished: false, solved: false, score: CONFIG.basePoints };
-}
-
-const SURVIVAL_BEST_KEY = 'dinger_survival_best_v1';
-const TIMED_BEST_KEY = 'dinger_timed_best_v1';
-
-function loadSurvivalBest() {
-  try {
-    const val = Number(localStorage.getItem(SURVIVAL_BEST_KEY));
-    return Number.isFinite(val) && val > 0 ? val : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function saveSurvivalBest(best) {
-  try {
-    localStorage.setItem(SURVIVAL_BEST_KEY, String(best));
-  } catch {
-    // Best score stays in memory only if storage is unavailable.
-  }
-}
-
-function loadTimedBest() {
-  try {
-    const val = Number(localStorage.getItem(TIMED_BEST_KEY));
-    return Number.isFinite(val) && val > 0 ? val : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function saveTimedBest(best) {
-  try {
-    localStorage.setItem(TIMED_BEST_KEY, String(best));
-  } catch {
-    // Best score stays in memory only if storage is unavailable.
-  }
-}
-
-const PHOTO_BLITZ_BEST_KEY = 'dinger_photo_blitz_best_v1';
-
-function loadPhotoBlitzBest() {
-  try {
-    const val = Number(localStorage.getItem(PHOTO_BLITZ_BEST_KEY));
-    return Number.isFinite(val) && val > 0 ? val : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function savePhotoBlitzBest(best) {
-  try {
-    localStorage.setItem(PHOTO_BLITZ_BEST_KEY, String(best));
-  } catch {
-    // Best score stays in memory only if storage is unavailable.
-  }
-}
-
 function defaultSurvivalProgress() {
   return { queue: [], currentPlayerId: null, clueIndex: 1, solved: 0, timeLeft: CONFIG.survivalStartTime, running: false, finished: false };
 }
@@ -175,177 +51,28 @@ function cacheDom() {
   ].forEach(id => { dom[id] = document.getElementById(id); });
 }
 
-const PHOTO_CACHE_KEY = 'dinger_photo_cache_v1';
-
-function loadPhotoCache() {
-  try {
-    const raw = localStorage.getItem(PHOTO_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
 }
 
-function persistPhotoCache() {
-  try {
-    localStorage.setItem(PHOTO_CACHE_KEY, JSON.stringify(photoCache));
-  } catch {
-    // Storage full or unavailable — cache just stays in-memory for this session.
-  }
+function appendClueItem(list, number, clue, isNew = false) {
+  const li = el('li', 'clue-item');
+  if (isNew) li.classList.add('clue-new');
+  li.append(el('span', 'clue-num', String(number)), el('span', 'clue-word', clue));
+  list.appendChild(li);
 }
 
-const photoCache = loadPhotoCache();
-
-async function fetchWikipediaSummary(title) {
-  const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/\s+/g, '_'))}`);
-  if (!res.ok) return null;
-  return res.json();
+function recapBlock(className, label, value, detail) {
+  const block = el('div', className);
+  block.append(el('span', '', label), el('strong', '', String(value)), el('em', '', detail));
+  return block;
 }
 
-function looksLikeBaseballBio(summary) {
-  if (!summary || summary.type === 'disambiguation') return false;
-  const text = `${summary.description || ''} ${summary.extract || ''}`.toLowerCase();
-  return text.includes('baseball');
-}
-
-// Common names (e.g. "Frank Thomas") collide with unrelated Wikipedia
-// articles, so if the direct lookup isn't a baseball bio, retry against a
-// search scoped to "<name> baseball" before giving up.
-async function findBaseballWikipediaTitle(name) {
-  const query = encodeURIComponent(`${name} baseball`);
-  const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=1&srsearch=${query}`);
-  if (!res.ok) return null;
-  const data = await res.json();
-  const hit = data && data.query && data.query.search && data.query.search[0];
-  return hit ? hit.title : null;
-}
-
-async function fetchPlayerPhoto(name) {
-  if (Object.prototype.hasOwnProperty.call(photoCache, name)) return photoCache[name];
-  try {
-    let summary = await fetchWikipediaSummary(name);
-    if (!looksLikeBaseballBio(summary)) {
-      const betterTitle = await findBaseballWikipediaTitle(name);
-      if (betterTitle) {
-        const betterSummary = await fetchWikipediaSummary(betterTitle);
-        if (looksLikeBaseballBio(betterSummary)) summary = betterSummary;
-      }
-    }
-    const url = (summary && ((summary.thumbnail && summary.thumbnail.source) || (summary.originalimage && summary.originalimage.source))) || null;
-    photoCache[name] = url;
-    persistPhotoCache();
-    return url;
-  } catch {
-    photoCache[name] = null;
-    persistPhotoCache();
-    return null;
-  }
-}
-
-const PHOTO_COLOR_CACHE_KEY = 'dinger_photo_color_cache_v1';
-const PHOTO_COLOR_SATURATION_THRESHOLD = 14; // avg max-min RGB channel delta; grayscale/sepia scans land well under this
-
-function loadPhotoColorCache() {
-  try {
-    const raw = localStorage.getItem(PHOTO_COLOR_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function persistPhotoColorCache() {
-  try {
-    localStorage.setItem(PHOTO_COLOR_CACHE_KEY, JSON.stringify(photoColorCache));
-  } catch {
-    // Storage full or unavailable — cache just stays in-memory for this session.
-  }
-}
-
-const photoColorCache = loadPhotoColorCache();
-
-function loadImageForColorCheck(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('image failed to load'));
-    img.src = url;
-  });
-}
-
-// Downsamples the photo onto a tiny canvas and measures average color
-// saturation (max channel - min channel per pixel). True black-and-white or
-// sepia-toned scans land near zero; real color photos of skin/grass/jerseys
-// land well above the threshold. If the canvas read fails (e.g. a photo host
-// without permissive CORS headers), the check is inconclusive — we let the
-// player through rather than silently starving Photo Blitz's pool.
-async function isColorPhotoUrl(url) {
-  if (Object.prototype.hasOwnProperty.call(photoColorCache, url)) return photoColorCache[url];
-  let verdict = true;
-  try {
-    const img = await loadImageForColorCheck(url);
-    const size = 32;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, size, size);
-    const { data } = ctx.getImageData(0, 0, size, size);
-    let totalDelta = 0;
-    let pixelCount = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i], g = data[i + 1], b = data[i + 2];
-      totalDelta += Math.max(r, g, b) - Math.min(r, g, b);
-      pixelCount += 1;
-    }
-    verdict = (totalDelta / pixelCount) > PHOTO_COLOR_SATURATION_THRESHOLD;
-  } catch {
-    verdict = true;
-  }
-  photoColorCache[url] = verdict;
-  persistPhotoColorCache();
-  return verdict;
-}
-
-function initialsOf(name) {
-  return name
-    .split(/\s+/)
-    .filter(word => /^[A-Z]/.test(word))
-    .map(word => word[0])
-    .join('')
-    .slice(0, 3);
-}
-
-async function loadPlayerPhoto(player, solved) {
-  const wrap = dom['player-photo-wrap'];
-  const img = dom['player-photo'];
-  const placeholder = dom['player-photo-placeholder'];
-
-  wrap.classList.toggle('photo-win', solved);
-  wrap.classList.toggle('photo-loss', !solved);
-  img.classList.remove('loaded');
-  img.removeAttribute('src');
-  placeholder.textContent = '⚾';
-  placeholder.classList.remove('hidden', 'initials');
-
-  const url = await fetchPlayerPhoto(player.name);
-  if (!url) {
-    placeholder.textContent = initialsOf(player.name);
-    placeholder.classList.add('initials');
-    return;
-  }
-
-  img.onload = () => {
-    img.classList.add('loaded');
-    placeholder.classList.add('hidden');
-  };
-  img.onerror = () => {
-    placeholder.textContent = initialsOf(player.name);
-    placeholder.classList.add('initials');
-  };
-  img.alt = player.name;
-  img.src = url;
+function renderResultSummary(blocks) {
+  dom['result-summary'].replaceChildren(...blocks);
 }
 
 function maxCluesFor(player) {
@@ -360,11 +87,7 @@ function renderClueList() {
   const clues = getCluesForPlayer(today.player);
   dom['clue-list'].innerHTML = '';
   for (let i = 0; i < progress.clueIndex; i += 1) {
-    const li = document.createElement('li');
-    li.className = 'clue-item';
-    if (i === progress.clueIndex - 1 && !progress.finished) li.classList.add('clue-new');
-    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${clues[i]}</span>`;
-    dom['clue-list'].appendChild(li);
+    appendClueItem(dom['clue-list'], i + 1, clues[i], i === progress.clueIndex - 1 && !progress.finished);
   }
 }
 
@@ -447,35 +170,6 @@ function loadNextTimedPlayer() {
 
 function photoBlitzCurrentPlayer() {
   return photoBlitzProgress.currentEntry ? PLAYERS.find(p => p.id === photoBlitzProgress.currentEntry.id) || null : null;
-}
-
-// Tries a single candidate id: fetches its photo and verifies it's a color
-// photo (unless the player is on the black-and-white exception list).
-// Returns {id, url} on success or null if this candidate should be skipped.
-async function tryPreparePhotoBlitzEntry(id) {
-  const player = PLAYERS.find(p => p.id === id);
-  if (!player) return null;
-  const url = await fetchPlayerPhoto(player.name);
-  if (!url) return null;
-  if (CONFIG.photoBlitzBwAllowlist.includes(id)) return { id, url };
-  const isColor = await isColorPhotoUrl(url);
-  return isColor ? { id, url } : null;
-}
-
-// Pulls candidates from the shuffled queue (refilling from the full roster
-// when it runs dry) until one qualifies. Disqualified candidates (no photo,
-// or black-and-white and not on the exception list) are silently dropped —
-// the player never sees them.
-async function findNextPhotoBlitzEntry() {
-  for (;;) {
-    if (!photoBlitzProgress.queue.length) {
-      photoBlitzProgress.queue = buildSurvivalQueue();
-    }
-    const id = photoBlitzProgress.queue.shift();
-    if (!id) return null;
-    const entry = await tryPreparePhotoBlitzEntry(id);
-    if (entry) return entry;
-  }
 }
 
 function stopSurvivalTimer() {
@@ -838,11 +532,7 @@ function renderSurvivalClueList() {
   const clues = getSurvivalCluesForPlayer(player);
   dom['clue-list'].innerHTML = '';
   for (let i = 0; i < survivalProgress.clueIndex; i += 1) {
-    const li = document.createElement('li');
-    li.className = 'clue-item';
-    if (i === survivalProgress.clueIndex - 1) li.classList.add('clue-new');
-    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${clues[i]}</span>`;
-    dom['clue-list'].appendChild(li);
+    appendClueItem(dom['clue-list'], i + 1, clues[i], i === survivalProgress.clueIndex - 1);
   }
 }
 
@@ -852,11 +542,7 @@ function renderTimedClueList() {
   const clues = getTimedCluesForPlayer(player);
   dom['clue-list'].innerHTML = '';
   for (let i = 0; i < timedProgress.clueIndex; i += 1) {
-    const li = document.createElement('li');
-    li.className = 'clue-item';
-    if (i === timedProgress.clueIndex - 1) li.classList.add('clue-new');
-    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${clues[i]}</span>`;
-    dom['clue-list'].appendChild(li);
+    appendClueItem(dom['clue-list'], i + 1, clues[i], i === timedProgress.clueIndex - 1);
   }
 }
 
@@ -1129,10 +815,10 @@ function renderSurvivalResult() {
   dom['result-player'].textContent = `You solved ${survivalProgress.solved} player${survivalProgress.solved === 1 ? '' : 's'} in Survival mode.`;
   dom['result-score'].textContent = `${survivalProgress.solved} solved`;
   dom['result-grid'].textContent = survivalProgress.solved > 0 ? '⚾'.repeat(Math.min(10, survivalProgress.solved)) : '❌';
-  dom['result-summary'].innerHTML = `
-    <div class="recap-stat"><span>This run</span><strong>${survivalProgress.solved}</strong><em>Players solved</em></div>
-    <div class="recap-stat"><span>Best run</span><strong>${survivalBest}</strong><em>${isNewBest ? 'New best!' : 'Personal best'}</em></div>
-  `;
+  renderResultSummary([
+    recapBlock('recap-stat', 'This run', survivalProgress.solved, 'Players solved'),
+    recapBlock('recap-stat', 'Best run', survivalBest, isNewBest ? 'New best!' : 'Personal best'),
+  ]);
   dom['result-clues'].innerHTML = '';
   dom['player-photo-wrap'].classList.remove('photo-win', 'photo-loss');
   dom['player-photo'].classList.remove('loaded');
@@ -1159,11 +845,11 @@ function renderTimedResult() {
   dom['result-player'].textContent = `You got ${timedProgress.solved} player${timedProgress.solved === 1 ? '' : 's'} correct in Timed mode.`;
   dom['result-score'].textContent = `${timedProgress.solved} correct`;
   dom['result-grid'].textContent = timedProgress.solved > 0 ? '⚾'.repeat(Math.min(10, timedProgress.solved)) : '❌';
-  dom['result-summary'].innerHTML = `
-    <div class="recap-stat"><span>This run</span><strong>${timedProgress.solved}</strong><em>Players correct</em></div>
-    <div class="recap-stat"><span>Best run</span><strong>${timedBest}</strong><em>${isNewBest ? 'New best!' : 'Personal best'}</em></div>
-    <div class="recap-clue"><span>Rules</span><strong>${CONFIG.timedStartTime} seconds per player</strong><em>Each extra clue costs ${CONFIG.timedCluePenalty} seconds</em></div>
-  `;
+  renderResultSummary([
+    recapBlock('recap-stat', 'This run', timedProgress.solved, 'Players correct'),
+    recapBlock('recap-stat', 'Best run', timedBest, isNewBest ? 'New best!' : 'Personal best'),
+    recapBlock('recap-clue', 'Rules', `${CONFIG.timedStartTime} seconds per player`, `Each extra clue costs ${CONFIG.timedCluePenalty} seconds`),
+  ]);
   dom['result-clues'].innerHTML = '';
   dom['player-photo-wrap'].classList.remove('photo-win', 'photo-loss');
   dom['player-photo'].classList.remove('loaded');
@@ -1190,10 +876,10 @@ function renderPhotoBlitzResult() {
   dom['result-player'].textContent = `You named ${photoBlitzProgress.solved} player${photoBlitzProgress.solved === 1 ? '' : 's'} in Photo Blitz.`;
   dom['result-score'].textContent = `${photoBlitzProgress.solved} named`;
   dom['result-grid'].textContent = photoBlitzProgress.solved > 0 ? '⚾'.repeat(Math.min(10, photoBlitzProgress.solved)) : '❌';
-  dom['result-summary'].innerHTML = `
-    <div class="recap-stat"><span>This run</span><strong>${photoBlitzProgress.solved}</strong><em>Players named</em></div>
-    <div class="recap-stat"><span>Best run</span><strong>${photoBlitzBest}</strong><em>${isNewBest ? 'New best!' : 'Personal best'}</em></div>
-  `;
+  renderResultSummary([
+    recapBlock('recap-stat', 'This run', photoBlitzProgress.solved, 'Players named'),
+    recapBlock('recap-stat', 'Best run', photoBlitzBest, isNewBest ? 'New best!' : 'Personal best'),
+  ]);
   dom['result-clues'].innerHTML = '';
   dom['player-photo-wrap'].classList.remove('photo-win', 'photo-loss');
   dom['player-photo'].classList.remove('loaded');
@@ -1203,18 +889,20 @@ function renderPhotoBlitzResult() {
 
   if (photoBlitzProgress.skipped.length) {
     dom['result-skipped'].classList.remove('hidden');
-    dom['result-skipped'].innerHTML = `
-      <h3>Players You Skipped</h3>
-      <ul class="skipped-list">${photoBlitzProgress.skipped.map(s => `
-        <li>
-          <img class="skipped-photo" src="${s.url}" alt="${s.name}">
-          <span>${s.name}</span>
-        </li>
-      `).join('')}</ul>
-    `;
+    const title = el('h3', '', 'Players You Skipped');
+    const list = el('ul', 'skipped-list');
+    photoBlitzProgress.skipped.forEach((skipped) => {
+      const item = el('li');
+      const img = el('img', 'skipped-photo');
+      img.src = skipped.url;
+      img.alt = skipped.name;
+      item.append(img, el('span', '', skipped.name));
+      list.appendChild(item);
+    });
+    dom['result-skipped'].replaceChildren(title, list);
   } else {
     dom['result-skipped'].classList.add('hidden');
-    dom['result-skipped'].innerHTML = '';
+    dom['result-skipped'].replaceChildren();
   }
 
   dom['survival-again-btn'].textContent = 'Play Again';
@@ -1315,379 +1003,6 @@ function setMode(mode) {
   }
 }
 
-function buildShareText() {
-  let squares = '';
-  for (let i = 1; i < progress.clueIndex; i += 1) squares += '🟨';
-  squares += progress.solved ? '✅' : '❌';
-  const clueCount = maxCluesFor(today.player);
-  const status = progress.solved ? `${progress.clueIndex}/${clueCount}` : `X/${clueCount}`;
-  return `⚾ Dinger #${today.puzzleNumber} — ${squares} ${status} — ${progress.score} pts`;
-}
-
-function resetShareButtonSoon() {
-  setTimeout(() => { dom['share-btn'].textContent = 'Share Result'; }, 2000);
-}
-
-function gameShareUrl() {
-  return window.location.href.split('#')[0];
-}
-
-function roundRect(ctx, x, y, width, height, radius) {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-}
-
-function drawCenteredText(ctx, text, x, y, maxWidth, fontSize, fontFamily, color) {
-  ctx.fillStyle = color;
-  ctx.font = `800 ${fontSize}px ${fontFamily}`;
-  let size = fontSize;
-  while (ctx.measureText(text).width > maxWidth && size > 22) {
-    size -= 2;
-    ctx.font = `800 ${size}px ${fontFamily}`;
-  }
-  ctx.fillText(text, x, y);
-}
-
-function canvasToBlob(canvas) {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error('Unable to create share image'));
-    }, 'image/png');
-  });
-}
-
-async function buildShareImageFile() {
-  const size = 1080;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const link = gameShareUrl();
-  const clueCount = maxCluesFor(today.player);
-  const status = progress.solved
-    ? `Solved in ${progress.clueIndex}/${clueCount} clues`
-    : `Missed after ${progress.clueIndex}/${clueCount} clues`;
-  const stats = loadStats();
-  const streakText = `Current streak: ${stats.currentStreak}  •  Best: ${stats.maxStreak}`;
-
-  const bg = ctx.createLinearGradient(0, 0, size, size);
-  bg.addColorStop(0, '#041226');
-  bg.addColorStop(0.55, '#0b2447');
-  bg.addColorStop(1, '#12386a');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, size, size);
-
-  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
-  ctx.beginPath();
-  ctx.moveTo(0, 790);
-  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
-  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
-  ctx.lineTo(1080, 1080);
-  ctx.lineTo(0, 1080);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(0, 825);
-  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
-  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
-  for (let i = 0; i < 12; i += 1) {
-    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
-  }
-
-  roundRect(ctx, 90, 110, 900, 760, 36);
-  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
-  ctx.fill();
-  ctx.strokeStyle = '#2a5f9e';
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
-  ctx.fillStyle = '#bf0d3e';
-  ctx.font = '800 30px Arial, sans-serif';
-  ctx.fillText(`DAILY MLB PLAYER GAME  •  PUZZLE #${today.puzzleNumber}`, 540, 292);
-
-  ctx.fillStyle = '#f5f8ff';
-  ctx.font = '900 150px Arial, sans-serif';
-  ctx.fillText(`${progress.score}`, 540, 430);
-  ctx.fillStyle = '#a9bdd8';
-  ctx.font = '800 34px Arial, sans-serif';
-  ctx.fillText('POINTS', 540, 520);
-
-  ctx.fillStyle = progress.solved ? '#f5f8ff' : '#e83a59';
-  ctx.font = '800 42px Arial, sans-serif';
-  ctx.fillText(status, 540, 600);
-
-  ctx.fillStyle = '#a9bdd8';
-  ctx.font = '700 28px Arial, sans-serif';
-  ctx.fillText(streakText, 540, 638);
-
-  const blockSize = 48;
-  const gap = 14;
-  const totalWidth = progress.clueIndex * blockSize + (progress.clueIndex - 1) * gap;
-  let x = 540 - totalWidth / 2;
-  for (let i = 1; i <= progress.clueIndex; i += 1) {
-    roundRect(ctx, x, 685, blockSize, blockSize, 8);
-    ctx.fillStyle = i === progress.clueIndex
-      ? (progress.solved ? '#f5f8ff' : '#e83a59')
-      : '#bf0d3e';
-    ctx.fill();
-    if (i === progress.clueIndex) {
-      ctx.fillStyle = progress.solved ? '#041226' : '#f5f8ff';
-      ctx.font = '900 28px Arial, sans-serif';
-      ctx.fillText(progress.solved ? '✓' : '×', x + blockSize / 2, 710);
-    }
-    x += blockSize + gap;
-  }
-
-  ctx.fillStyle = '#d8e8ff';
-  ctx.font = '700 30px Arial, sans-serif';
-  ctx.fillText('Play at', 540, 790);
-  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
-
-  const blob = await canvasToBlob(canvas);
-  return new File([blob], `dinger-${today.puzzleNumber}.png`, { type: 'image/png' });
-}
-
-async function buildSurvivalShareImageFile() {
-  const size = 1080;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const link = gameShareUrl();
-  const isNewBest = survivalProgress.solved > 0 && survivalProgress.solved >= survivalBest;
-  const bestText = isNewBest ? 'New personal best!' : `Best run: ${survivalBest} solved`;
-
-  const bg = ctx.createLinearGradient(0, 0, size, size);
-  bg.addColorStop(0, '#041226');
-  bg.addColorStop(0.55, '#0b2447');
-  bg.addColorStop(1, '#12386a');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, size, size);
-
-  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
-  ctx.beginPath();
-  ctx.moveTo(0, 790);
-  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
-  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
-  ctx.lineTo(1080, 1080);
-  ctx.lineTo(0, 1080);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(0, 825);
-  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
-  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
-  for (let i = 0; i < 12; i += 1) {
-    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
-  }
-
-  roundRect(ctx, 90, 110, 900, 760, 36);
-  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
-  ctx.fill();
-  ctx.strokeStyle = '#2a5f9e';
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
-  ctx.fillStyle = '#bf0d3e';
-  ctx.font = '800 30px Arial, sans-serif';
-  ctx.fillText('SURVIVAL MODE', 540, 292);
-
-  ctx.fillStyle = '#f5f8ff';
-  ctx.font = '900 150px Arial, sans-serif';
-  ctx.fillText(`${survivalProgress.solved}`, 540, 460);
-  ctx.fillStyle = '#a9bdd8';
-  ctx.font = '800 34px Arial, sans-serif';
-  ctx.fillText('PLAYERS SOLVED', 540, 550);
-
-  ctx.fillStyle = isNewBest ? '#f5f8ff' : '#e83a59';
-  ctx.font = '800 40px Arial, sans-serif';
-  ctx.fillText(bestText, 540, 636);
-
-  ctx.fillStyle = '#d8e8ff';
-  ctx.font = '700 30px Arial, sans-serif';
-  ctx.fillText('Play at', 540, 790);
-  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
-
-  const blob = await canvasToBlob(canvas);
-  return new File([blob], `dinger-survival-${survivalProgress.solved}.png`, { type: 'image/png' });
-}
-
-async function buildTimedShareImageFile() {
-  const size = 1080;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const link = gameShareUrl();
-  const isNewBest = timedProgress.solved > 0 && timedProgress.solved >= timedBest;
-  const bestText = isNewBest ? 'New personal best!' : `Best run: ${timedBest} correct`;
-
-  const bg = ctx.createLinearGradient(0, 0, size, size);
-  bg.addColorStop(0, '#041226');
-  bg.addColorStop(0.55, '#0b2447');
-  bg.addColorStop(1, '#12386a');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, size, size);
-
-  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
-  ctx.beginPath();
-  ctx.moveTo(0, 790);
-  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
-  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
-  ctx.lineTo(1080, 1080);
-  ctx.lineTo(0, 1080);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(0, 825);
-  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
-  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
-  for (let i = 0; i < 12; i += 1) {
-    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
-  }
-
-  roundRect(ctx, 90, 110, 900, 760, 36);
-  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
-  ctx.fill();
-  ctx.strokeStyle = '#2a5f9e';
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
-  ctx.fillStyle = '#bf0d3e';
-  ctx.font = '800 30px Arial, sans-serif';
-  ctx.fillText('TIMED MODE', 540, 292);
-
-  ctx.fillStyle = '#f5f8ff';
-  ctx.font = '900 150px Arial, sans-serif';
-  ctx.fillText(`${timedProgress.solved}`, 540, 460);
-  ctx.fillStyle = '#a9bdd8';
-  ctx.font = '800 34px Arial, sans-serif';
-  ctx.fillText('PLAYERS CORRECT', 540, 550);
-
-  ctx.fillStyle = isNewBest ? '#f5f8ff' : '#e83a59';
-  ctx.font = '800 40px Arial, sans-serif';
-  ctx.fillText(bestText, 540, 636);
-
-  ctx.fillStyle = '#d8e8ff';
-  ctx.font = '700 30px Arial, sans-serif';
-  ctx.fillText('Play at', 540, 790);
-  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
-
-  const blob = await canvasToBlob(canvas);
-  return new File([blob], `dinger-timed-${timedProgress.solved}.png`, { type: 'image/png' });
-}
-
-async function buildPhotoBlitzShareImageFile() {
-  const size = 1080;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const link = gameShareUrl();
-  const isNewBest = photoBlitzProgress.solved > 0 && photoBlitzProgress.solved >= photoBlitzBest;
-  const bestText = isNewBest ? 'New personal best!' : `Best run: ${photoBlitzBest} named`;
-
-  const bg = ctx.createLinearGradient(0, 0, size, size);
-  bg.addColorStop(0, '#041226');
-  bg.addColorStop(0.55, '#0b2447');
-  bg.addColorStop(1, '#12386a');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, size, size);
-
-  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
-  ctx.beginPath();
-  ctx.moveTo(0, 790);
-  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
-  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
-  ctx.lineTo(1080, 1080);
-  ctx.lineTo(0, 1080);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(0, 825);
-  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
-  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
-  for (let i = 0; i < 12; i += 1) {
-    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
-  }
-
-  roundRect(ctx, 90, 110, 900, 760, 36);
-  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
-  ctx.fill();
-  ctx.strokeStyle = '#2a5f9e';
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
-  ctx.fillStyle = '#bf0d3e';
-  ctx.font = '800 30px Arial, sans-serif';
-  ctx.fillText('PHOTO BLITZ', 540, 292);
-
-  ctx.fillStyle = '#f5f8ff';
-  ctx.font = '900 150px Arial, sans-serif';
-  ctx.fillText(`${photoBlitzProgress.solved}`, 540, 460);
-  ctx.fillStyle = '#a9bdd8';
-  ctx.font = '800 34px Arial, sans-serif';
-  ctx.fillText('PLAYERS NAMED', 540, 550);
-
-  ctx.fillStyle = isNewBest ? '#f5f8ff' : '#e83a59';
-  ctx.font = '800 40px Arial, sans-serif';
-  ctx.fillText(bestText, 540, 636);
-
-  ctx.fillStyle = '#d8e8ff';
-  ctx.font = '700 30px Arial, sans-serif';
-  ctx.fillText('Play at', 540, 790);
-  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
-
-  const blob = await canvasToBlob(canvas);
-  return new File([blob], `dinger-photo-blitz-${photoBlitzProgress.solved}.png`, { type: 'image/png' });
-}
-
 function renderResultScreen() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
@@ -1702,6 +1017,7 @@ function renderResultScreen() {
   for (let i = 1; i < progress.clueIndex; i += 1) squares += '🟨';
   squares += progress.solved ? '✅' : '❌';
   dom['result-grid'].textContent = squares;
+
   const clueCount = maxCluesFor(today.player);
   const clues = getCluesForPlayer(today.player);
   const finalClue = clues[progress.clueIndex - 1];
@@ -1709,18 +1025,15 @@ function renderResultScreen() {
   const outcome = progress.solved
     ? `Solved in ${progress.clueIndex} of ${clueCount} clues`
     : `Revealed ${progress.clueIndex} of ${clueCount} clues`;
-  dom['result-summary'].innerHTML = `
-    <div class="recap-stat"><span>${outcome}</span><strong>${progress.misses}</strong><em>Wrong guesses</em></div>
-    <div class="recap-stat"><span>Era</span><strong>${today.player.era}</strong><em>Career window</em></div>
-    <div class="recap-clue"><span>Clue trail</span><strong>${firstClue}</strong><em>Final clue shown: ${finalClue}</em></div>
-  `;
+  renderResultSummary([
+    recapBlock('recap-stat', outcome, progress.misses, 'Wrong guesses'),
+    recapBlock('recap-stat', 'Era', today.player.era, 'Career window'),
+    recapBlock('recap-clue', 'Clue trail', firstClue, `Final clue shown: ${finalClue}`),
+  ]);
 
   dom['result-clues'].innerHTML = '';
   clues.slice(0, progress.clueIndex).forEach((word, i) => {
-    const li = document.createElement('li');
-    li.className = 'clue-item';
-    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${word}</span>`;
-    dom['result-clues'].appendChild(li);
+    appendClueItem(dom['result-clues'], i + 1, word);
   });
 
   loadPlayerPhoto(today.player, progress.solved);
@@ -1786,7 +1099,7 @@ function handlePass() {
     handleTimedPass();
     return;
   }
-  if (gameMode === 'photoblitz') return; // no clues to reveal in this mode
+  if (gameMode === 'photoblitz') return;
   if (progress.finished) return;
   const max = maxCluesFor(today.player);
   if (progress.clueIndex >= max) return;
@@ -1815,290 +1128,6 @@ function handleGiveUp() {
   finalize(false);
 }
 
-function buildSurvivalShareText() {
-  return `⚾ Dinger Survival — ${survivalProgress.solved} solved (best: ${survivalBest})`;
-}
-
-function buildTimedShareText() {
-  return `⚾ Dinger Timed — ${timedProgress.solved} correct (best: ${timedBest})`;
-}
-
-function buildPhotoBlitzShareText() {
-  return `⚾ Dinger Photo Blitz — ${photoBlitzProgress.solved} named (best: ${photoBlitzBest})`;
-}
-
-async function handleSurvivalShare() {
-  const text = buildSurvivalShareText();
-  const url = gameShareUrl();
-  let imageFile = null;
-  dom['share-btn'].disabled = true;
-  dom['share-btn'].textContent = 'Preparing...';
-
-  try {
-    imageFile = await buildSurvivalShareImageFile();
-  } catch {
-    imageFile = null;
-  }
-
-  dom['share-btn'].disabled = false;
-
-  const shareData = {
-    title: 'Dinger Survival',
-    text: `${text}\n${url}`,
-    url,
-  };
-  const imageShareData = imageFile
-    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
-    : null;
-
-  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
-    try {
-      await navigator.share(imageShareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-    try {
-      await navigator.share(shareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
-    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
-  } catch {
-    dom['share-btn'].textContent = `${text} ${url}`;
-  }
-  resetShareButtonSoon();
-}
-
-async function handleTimedShare() {
-  const text = buildTimedShareText();
-  const url = gameShareUrl();
-  let imageFile = null;
-  dom['share-btn'].disabled = true;
-  dom['share-btn'].textContent = 'Preparing...';
-
-  try {
-    imageFile = await buildTimedShareImageFile();
-  } catch {
-    imageFile = null;
-  }
-
-  dom['share-btn'].disabled = false;
-
-  const shareData = {
-    title: 'Dinger Timed',
-    text: `${text}\n${url}`,
-    url,
-  };
-  const imageShareData = imageFile
-    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
-    : null;
-
-  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
-    try {
-      await navigator.share(imageShareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-    try {
-      await navigator.share(shareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
-    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
-  } catch {
-    dom['share-btn'].textContent = `${text} ${url}`;
-  }
-  resetShareButtonSoon();
-}
-
-async function handlePhotoBlitzShare() {
-  const text = buildPhotoBlitzShareText();
-  const url = gameShareUrl();
-  let imageFile = null;
-  dom['share-btn'].disabled = true;
-  dom['share-btn'].textContent = 'Preparing...';
-
-  try {
-    imageFile = await buildPhotoBlitzShareImageFile();
-  } catch {
-    imageFile = null;
-  }
-
-  dom['share-btn'].disabled = false;
-
-  const shareData = {
-    title: 'Dinger Photo Blitz',
-    text: `${text}\n${url}`,
-    url,
-  };
-  const imageShareData = imageFile
-    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
-    : null;
-
-  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
-    try {
-      await navigator.share(imageShareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-    try {
-      await navigator.share(shareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
-    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
-  } catch {
-    dom['share-btn'].textContent = `${text} ${url}`;
-  }
-  resetShareButtonSoon();
-}
-
-async function handleShare() {
-  if (gameMode === 'survival') {
-    await handleSurvivalShare();
-    return;
-  }
-  if (gameMode === 'timed') {
-    await handleTimedShare();
-    return;
-  }
-  if (gameMode === 'photoblitz') {
-    await handlePhotoBlitzShare();
-    return;
-  }
-  const text = buildShareText();
-  const url = gameShareUrl();
-  let imageFile = null;
-  dom['share-btn'].disabled = true;
-  dom['share-btn'].textContent = 'Preparing...';
-
-  try {
-    imageFile = await buildShareImageFile();
-  } catch {
-    imageFile = null;
-  }
-
-  dom['share-btn'].disabled = false;
-
-  const shareData = {
-    title: `Dinger #${today.puzzleNumber}`,
-    text: `${text}\n${url}`,
-    url,
-  };
-  const imageShareData = imageFile
-    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
-    : null;
-
-  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
-    try {
-      await navigator.share(imageShareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-    try {
-      await navigator.share(shareData);
-      dom['share-btn'].textContent = 'Shared!';
-      resetShareButtonSoon();
-    } catch (err) {
-      if (err && err.name !== 'AbortError') {
-        dom['share-btn'].textContent = 'Share failed';
-        resetShareButtonSoon();
-      } else {
-        dom['share-btn'].textContent = 'Share Result';
-      }
-    }
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(`${text}\n${url}`);
-    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
-  } catch {
-    dom['share-btn'].textContent = `${text} ${url}`;
-  }
-  resetShareButtonSoon();
-}
-
 function renderStats() {
   const stats = loadStats();
   const winPct = stats.played ? Math.round((100 * stats.wins) / stats.played) : 0;
@@ -2114,85 +1143,55 @@ function renderStats() {
   const recent = Object.entries(stats.history)
     .sort(([a], [b]) => b.localeCompare(a))
     .slice(0, 8);
-  const distributionHtml = distribution.map((count, i) => {
+
+  const statRow = el('div', 'stat-row');
+  [
+    [stats.played, 'Played', 'stat'],
+    [`${winPct}%`, 'Win rate', 'stat'],
+    [stats.currentStreak, 'Current streak', 'stat'],
+    [stats.maxStreak, 'Max streak', 'stat'],
+    [avgScore, 'Avg score solved', 'stat stat-wide'],
+  ].forEach(([value, label, className]) => {
+    const stat = el('div', className);
+    stat.append(el('span', 'stat-value', String(value)), el('span', 'stat-label', label));
+    statRow.appendChild(stat);
+  });
+
+  const distributionSection = el('section', 'stats-section');
+  distributionSection.appendChild(el('h3', '', 'Guess Distribution'));
+  const bars = el('div', 'guess-bars');
+  distribution.forEach((count, i) => {
     const pct = Math.max(count ? 8 : 0, Math.round((count / maxBucket) * 100));
-    return `
-      <div class="guess-bar-row">
-        <span>${i + 1}</span>
-        <div class="guess-bar-track"><div class="guess-bar-fill" style="width: ${pct}%"></div></div>
-        <strong>${count}</strong>
-      </div>
-    `;
-  }).join('');
-  const recentHtml = recent.length
-    ? recent.map(([date, entry]) => `
-      <div class="history-row">
-        <span class="history-date">${date.slice(5).replace('-', '/')}</span>
-        <span class="history-result ${entry.solved ? 'win' : 'loss'}">${entry.solved ? 'Win' : 'Loss'}</span>
-        <span class="history-score">${entry.solved ? `${entry.score} pts` : '0 pts'}</span>
-        <span class="history-clues">${entry.cluesUsed}/${CONFIG.maxClues}</span>
-      </div>
-    `).join('')
-    : '<p class="empty-history">Finished games will show up here.</p>';
+    const row = el('div', 'guess-bar-row');
+    const track = el('div', 'guess-bar-track');
+    const fill = el('div', 'guess-bar-fill');
+    fill.style.width = `${pct}%`;
+    track.appendChild(fill);
+    row.append(el('span', '', String(i + 1)), track, el('strong', '', String(count)));
+    bars.appendChild(row);
+  });
+  distributionSection.appendChild(bars);
 
-  dom['stats-grid'].innerHTML = `
-    <div class="stat-row">
-      <div class="stat"><span class="stat-value">${stats.played}</span><span class="stat-label">Played</span></div>
-      <div class="stat"><span class="stat-value">${winPct}%</span><span class="stat-label">Win rate</span></div>
-      <div class="stat"><span class="stat-value">${stats.currentStreak}</span><span class="stat-label">Current streak</span></div>
-      <div class="stat"><span class="stat-value">${stats.maxStreak}</span><span class="stat-label">Max streak</span></div>
-      <div class="stat stat-wide"><span class="stat-value">${avgScore}</span><span class="stat-label">Avg score solved</span></div>
-    </div>
-    <section class="stats-section">
-      <h3>Guess Distribution</h3>
-      <div class="guess-bars">${distributionHtml}</div>
-    </section>
-    <section class="stats-section">
-      <h3>Recent Games</h3>
-      <div class="history-list">${recentHtml}</div>
-    </section>
-  `;
-}
-
-let lastFocusedEl = null;
-
-function getFocusableEls(container) {
-  return Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
-    .filter(el => !el.disabled && el.offsetParent !== null);
-}
-
-function trapFocusKeydown(e, modal) {
-  if (e.key !== 'Tab') return;
-  const focusable = getFocusableEls(modal);
-  if (!focusable.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (e.shiftKey && document.activeElement === first) {
-    e.preventDefault();
-    last.focus();
-  } else if (!e.shiftKey && document.activeElement === last) {
-    e.preventDefault();
-    first.focus();
+  const recentSection = el('section', 'stats-section');
+  recentSection.appendChild(el('h3', '', 'Recent Games'));
+  const historyList = el('div', 'history-list');
+  if (recent.length) {
+    recent.forEach(([date, entry]) => {
+      const row = el('div', 'history-row');
+      row.append(
+        el('span', 'history-date', date.slice(5).replace('-', '/')),
+        el('span', `history-result ${entry.solved ? 'win' : 'loss'}`, entry.solved ? 'Win' : 'Loss'),
+        el('span', 'history-score', entry.solved ? `${entry.score} pts` : '0 pts'),
+        el('span', 'history-clues', `${entry.cluesUsed}/${CONFIG.maxClues}`),
+      );
+      historyList.appendChild(row);
+    });
+  } else {
+    historyList.appendChild(el('p', 'empty-history', 'Finished games will show up here.'));
   }
-}
+  recentSection.appendChild(historyList);
 
-function toggleModal(modal, show, triggerEl) {
-  const wasOpen = !modal.classList.contains('hidden');
-  modal.classList.toggle('hidden', !show);
-
-  if (show && !wasOpen) {
-    lastFocusedEl = triggerEl || document.activeElement;
-    const focusable = getFocusableEls(modal);
-    if (focusable.length) focusable[0].focus();
-    modal._trapHandler = (e) => trapFocusKeydown(e, modal);
-    modal.addEventListener('keydown', modal._trapHandler);
-  } else if (!show && wasOpen) {
-    if (modal._trapHandler) {
-      modal.removeEventListener('keydown', modal._trapHandler);
-      modal._trapHandler = null;
-    }
-    if (lastFocusedEl) lastFocusedEl.focus();
-  }
+  dom['stats-grid'].replaceChildren(statRow, distributionSection, recentSection);
 }
 
 function showFirstRunHelp() {

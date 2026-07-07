@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Dinger — Daily MLB Player Guessing Game",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test tests/game.test.js tests/**/*.test.js",
+    "test:ui": "node --test tests/ui/**/*.test.js",
     "bump-version": "node scripts/bump-version.mjs"
   }
 }
