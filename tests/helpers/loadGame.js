@@ -14,7 +14,8 @@ const EXPORTS = [
   'CONFIG', 'daysBetween', 'getPuzzleForDate', 'parseEraRange', 'decadeLabel',
   'eraWindowLabel', 'getCluesForPlayer', 'normalize', 'withoutSuffix', 'compact',
   'lastNameOf', 'levenshtein', 'isUniqueLastName', 'isCorrectGuess', 'computeScore',
-  'formatCountdown', 'PLAYERS', 'DAILY_ORDER',
+  'formatCountdown', 'PLAYERS', 'DAILY_ORDER', 'getSurvivalCluesForPlayer',
+  'survivalBonusForClueCount', 'clampSurvivalTime', 'buildSurvivalQueue',
 ];
 
 function loadGame() {

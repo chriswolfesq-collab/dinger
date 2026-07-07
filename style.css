@@ -86,6 +86,21 @@ header {
   margin-bottom: 4px;
 }
 
+.home-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 10px;
+}
+
+.home-btn:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 4px;
+}
+
 h1 {
   font-family: var(--font-display);
   letter-spacing: 0.1em;
@@ -132,6 +147,81 @@ h1 .ball {
 }
 
 .icon-btn:active { transform: translateY(0); }
+
+.home-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 18px 0 24px;
+}
+
+.home-intro {
+  margin: 0 0 4px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.home-mode-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  background: linear-gradient(180deg, rgba(18, 56, 106, 0.94), rgba(7, 27, 54, 0.94));
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 16px;
+  cursor: pointer;
+  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.home-mode-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.home-mode-card:active { transform: translateY(0); }
+
+.home-mode-icon {
+  font-size: 34px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.home-mode-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-mode-title {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+}
+
+.home-mode-desc {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.home-mode-meta {
+  color: var(--accent-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.survival-start {
+  width: 100%;
+  margin-bottom: 16px;
+}
 
 .puzzle-number {
   text-align: center;
@@ -504,6 +594,55 @@ h1 .ball {
 @keyframes pulse-placeholder {
   0%, 100% { opacity: 0.5; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.08); }
+}
+
+.survival-reveal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 18, 38, 0.72);
+  backdrop-filter: blur(2px);
+  animation: fade-in 0.2s ease;
+}
+
+.survival-reveal-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(180deg, var(--card-hi), var(--card));
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 28px 32px;
+  max-width: 320px;
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.8);
+  animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.survival-reveal-photo-wrap { margin-bottom: 14px; }
+
+.survival-reveal-name {
+  font-family: var(--font-display);
+  font-size: 26px;
+  letter-spacing: 0.03em;
+  color: var(--accent-soft);
+  text-align: center;
+}
+
+.survival-reveal-bonus {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-dim);
 }
 
 #result-title {

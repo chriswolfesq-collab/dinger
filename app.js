@@ -68,20 +68,53 @@ function defaultProgress() {
   return { clueIndex: 1, misses: 0, finished: false, solved: false, score: CONFIG.basePoints };
 }
 
+const SURVIVAL_BEST_KEY = 'dinger_survival_best_v1';
+
+function loadSurvivalBest() {
+  try {
+    const val = Number(localStorage.getItem(SURVIVAL_BEST_KEY));
+    return Number.isFinite(val) && val > 0 ? val : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveSurvivalBest(best) {
+  try {
+    localStorage.setItem(SURVIVAL_BEST_KEY, String(best));
+  } catch {
+    // Best score stays in memory only if storage is unavailable.
+  }
+}
+
+function defaultSurvivalProgress() {
+  return { queue: [], currentPlayerId: null, clueIndex: 1, solved: 0, timeLeft: CONFIG.survivalStartTime, running: false, finished: false };
+}
+
 const dom = {};
 let today = null;
 let currentDateStr = null;
 let progress = null;
 let countdownTimer = null;
+let gameMode = null;
+let survivalProgress = defaultSurvivalProgress();
+let survivalTimer = null;
+let survivalBest = 0;
+let survivalRevealTimer = null;
+
+const SURVIVAL_REVEAL_MS = 1400; // how long the solved player's photo stays up, paused off the clock
 
 function cacheDom() {
   [
-    'puzzle-number', 'score-value', 'clue-list', 'guess-form', 'guess-input',
+    'puzzle-number', 'score-value', 'score-label', 'clue-list', 'guess-form', 'guess-input',
     'feedback', 'pass-btn', 'giveup-btn', 'game-screen', 'result-screen',
     'result-title', 'result-player', 'result-score', 'result-grid', 'result-clues',
     'result-summary', 'share-btn', 'next-puzzle-timer', 'stats-modal', 'stats-grid', 'help-modal',
     'stats-btn', 'help-btn', 'close-stats', 'close-stats-2', 'close-help', 'close-help-2',
     'player-photo-wrap', 'player-photo', 'player-photo-placeholder',
+    'survival-start-btn', 'survival-again-btn', 'intro-title', 'intro-copy', 'action-row', 'game-intro',
+    'survival-reveal-overlay', 'survival-reveal-photo', 'survival-reveal-placeholder', 'survival-reveal-name', 'survival-reveal-bonus',
+    'home-btn', 'home-screen', 'home-daily-btn', 'home-survival-btn', 'home-daily-meta', 'home-survival-meta',
   ].forEach(id => { dom[id] = document.getElementById(id); });
 }
 
@@ -260,6 +293,325 @@ function renderGameScreen() {
   updatePassButton();
 }
 
+function survivalCurrentPlayer() {
+  return PLAYERS.find(p => p.id === survivalProgress.currentPlayerId) || null;
+}
+
+function loadNextSurvivalPlayer() {
+  if (!survivalProgress.queue.length) {
+    survivalProgress.queue = buildSurvivalQueue();
+  }
+  const [nextId, ...rest] = survivalProgress.queue;
+  survivalProgress.queue = rest;
+  survivalProgress.currentPlayerId = nextId;
+  survivalProgress.clueIndex = 1;
+}
+
+function stopSurvivalTimer() {
+  if (survivalTimer) {
+    clearInterval(survivalTimer);
+    survivalTimer = null;
+  }
+}
+
+function startSurvivalTimer() {
+  stopSurvivalTimer();
+  survivalTimer = setInterval(() => {
+    survivalProgress.timeLeft = clampSurvivalTime(survivalProgress.timeLeft - 1);
+    updateSurvivalTimeDisplay();
+    if (survivalProgress.timeLeft <= 0) endSurvivalRun();
+  }, 1000);
+}
+
+function clearSurvivalReveal() {
+  if (survivalRevealTimer) {
+    clearTimeout(survivalRevealTimer);
+    survivalRevealTimer = null;
+  }
+}
+
+function hideSurvivalReveal() {
+  dom['survival-reveal-overlay'].classList.add('hidden');
+  dom['survival-reveal-photo'].classList.remove('loaded');
+  dom['survival-reveal-photo'].removeAttribute('src');
+  dom['survival-reveal-placeholder'].textContent = '⚾';
+  dom['survival-reveal-placeholder'].classList.remove('hidden', 'initials');
+  dom['survival-reveal-name'].textContent = '';
+  dom['survival-reveal-bonus'].textContent = '';
+}
+
+// Pops up the just-solved player's photo + name in an overlay above the
+// game. Fetches asynchronously; if a later reveal has already replaced this
+// one (name text moved on) by the time the fetch resolves, it's a no-op.
+async function showSurvivalReveal(player, bonus) {
+  dom['survival-reveal-overlay'].classList.remove('hidden');
+  dom['survival-reveal-name'].textContent = player.name;
+  dom['survival-reveal-bonus'].textContent = `Correct! +${bonus}s`;
+  dom['survival-reveal-photo'].classList.remove('loaded');
+  dom['survival-reveal-photo'].removeAttribute('src');
+  dom['survival-reveal-placeholder'].textContent = '⚾';
+  dom['survival-reveal-placeholder'].classList.remove('hidden', 'initials');
+
+  const url = await fetchPlayerPhoto(player.name);
+  if (dom['survival-reveal-name'].textContent !== player.name) return;
+
+  const img = dom['survival-reveal-photo'];
+  const placeholder = dom['survival-reveal-placeholder'];
+  if (url) {
+    img.onload = () => {
+      img.classList.add('loaded');
+      placeholder.classList.add('hidden');
+    };
+    img.onerror = () => {
+      placeholder.textContent = initialsOf(player.name);
+      placeholder.classList.add('initials');
+    };
+    img.alt = player.name;
+    img.src = url;
+  } else {
+    placeholder.textContent = initialsOf(player.name);
+    placeholder.classList.add('initials');
+  }
+}
+
+function startSurvivalRun() {
+  clearSurvivalReveal();
+  hideSurvivalReveal();
+  survivalProgress = defaultSurvivalProgress();
+  survivalProgress.queue = buildSurvivalQueue();
+  survivalProgress.running = true;
+  loadNextSurvivalPlayer();
+  showFeedback('', '');
+  dom['guess-input'].value = '';
+  renderSurvivalGameScreen();
+  startSurvivalTimer();
+  dom['guess-input'].focus();
+}
+
+function endSurvivalRun() {
+  clearSurvivalReveal();
+  hideSurvivalReveal();
+  stopSurvivalTimer();
+  survivalProgress.running = false;
+  survivalProgress.finished = true;
+  if (survivalProgress.solved > survivalBest) {
+    survivalBest = survivalProgress.solved;
+    saveSurvivalBest(survivalBest);
+  }
+  renderSurvivalResult();
+}
+
+function renderSurvivalLanding() {
+  dom['game-screen'].classList.remove('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['score-label'].textContent = 'Time';
+  dom['score-value'].textContent = String(CONFIG.survivalStartTime);
+  dom['puzzle-number'].textContent = `Survival Best: ${survivalBest} solved`;
+  dom['clue-list'].innerHTML = '';
+  dom['survival-start-btn'].classList.remove('hidden');
+  dom['guess-form'].classList.add('hidden');
+  dom['action-row'].classList.add('hidden');
+  showFeedback('', '');
+}
+
+function renderSurvivalGameScreen() {
+  dom['game-screen'].classList.remove('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['survival-start-btn'].classList.add('hidden');
+  dom['guess-form'].classList.remove('hidden');
+  dom['action-row'].classList.remove('hidden');
+  dom['score-label'].textContent = 'Time';
+  setGameControlsEnabled(true);
+  dom['puzzle-number'].textContent = `Solved ${survivalProgress.solved} · Best ${survivalBest}`;
+  renderSurvivalClueList();
+  updateSurvivalTimeDisplay();
+  updateSurvivalPassButton();
+  dom['giveup-btn'].disabled = false;
+  dom['giveup-btn'].textContent = `Skip (−${CONFIG.survivalSkipPenalty}s)`;
+}
+
+function renderSurvivalClueList() {
+  const player = survivalCurrentPlayer();
+  if (!player) return;
+  const clues = getSurvivalCluesForPlayer(player);
+  dom['clue-list'].innerHTML = '';
+  for (let i = 0; i < survivalProgress.clueIndex; i += 1) {
+    const li = document.createElement('li');
+    li.className = 'clue-item';
+    if (i === survivalProgress.clueIndex - 1) li.classList.add('clue-new');
+    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${clues[i]}</span>`;
+    dom['clue-list'].appendChild(li);
+  }
+}
+
+function updateSurvivalTimeDisplay() {
+  const el = dom['score-value'];
+  const val = String(survivalProgress.timeLeft);
+  if (el.textContent !== val) {
+    el.textContent = val;
+    el.classList.remove('pulse');
+    // eslint-disable-next-line no-void
+    void el.offsetWidth;
+    el.classList.add('pulse');
+  }
+}
+
+function updateSurvivalPassButton() {
+  if (survivalProgress.clueIndex >= CONFIG.survivalMaxClues) {
+    dom['pass-btn'].disabled = true;
+    dom['pass-btn'].textContent = 'No more clues';
+  } else {
+    dom['pass-btn'].disabled = false;
+    dom['pass-btn'].textContent = 'Reveal next clue';
+  }
+}
+
+function handleSurvivalGuessSubmit() {
+  if (!survivalProgress.running) return;
+  const raw = dom['guess-input'].value;
+  if (!raw.trim()) return;
+  const player = survivalCurrentPlayer();
+  if (!player) return;
+
+  if (isCorrectGuess(raw, player, PLAYERS)) {
+    const bonus = survivalBonusForClueCount(survivalProgress.clueIndex);
+    survivalProgress.timeLeft = clampSurvivalTime(survivalProgress.timeLeft + bonus);
+    survivalProgress.solved += 1;
+    dom['guess-input'].value = '';
+    showFeedback('', '');
+    updateSurvivalTimeDisplay();
+    dom['puzzle-number'].textContent = `Solved ${survivalProgress.solved} · Best ${survivalBest}`;
+
+    // Pause the clock while the solved player's photo pops up — the reveal
+    // itself should never eat into the run's time budget.
+    stopSurvivalTimer();
+    setGameControlsEnabled(false);
+    dom['pass-btn'].disabled = true;
+    dom['clue-list'].innerHTML = '';
+    showSurvivalReveal(player, bonus);
+
+    clearSurvivalReveal();
+    survivalRevealTimer = setTimeout(() => {
+      survivalRevealTimer = null;
+      hideSurvivalReveal();
+      loadNextSurvivalPlayer();
+      if (gameMode === 'survival') {
+        showFeedback('', '');
+        renderSurvivalGameScreen();
+        startSurvivalTimer();
+        dom['guess-input'].focus();
+      }
+    }, SURVIVAL_REVEAL_MS);
+    return;
+  }
+
+  showFeedback('Not quite — try again, reveal a clue, or skip.', 'wrong');
+  dom['guess-input'].select();
+}
+
+function handleSurvivalPass() {
+  if (!survivalProgress.running) return;
+  if (survivalProgress.clueIndex >= CONFIG.survivalMaxClues) return;
+  survivalProgress.clueIndex += 1;
+  showFeedback('', '');
+  renderSurvivalClueList();
+  updateSurvivalPassButton();
+}
+
+function handleSurvivalSkip() {
+  if (!survivalProgress.running) return;
+  survivalProgress.timeLeft = clampSurvivalTime(survivalProgress.timeLeft - CONFIG.survivalSkipPenalty);
+  updateSurvivalTimeDisplay();
+  if (survivalProgress.timeLeft <= 0) {
+    endSurvivalRun();
+    return;
+  }
+  showFeedback(`Skipped −${CONFIG.survivalSkipPenalty}s`, 'wrong');
+  loadNextSurvivalPlayer();
+  renderSurvivalGameScreen();
+}
+
+function renderSurvivalResult() {
+  dom['game-screen'].classList.add('hidden');
+  dom['result-screen'].classList.remove('hidden');
+  dom['puzzle-number'].textContent = `Survival Best: ${survivalBest} solved`;
+
+  const isNewBest = survivalProgress.solved > 0 && survivalProgress.solved >= survivalBest;
+  dom['result-title'].textContent = "Time's up!";
+  dom['result-player'].textContent = `You solved ${survivalProgress.solved} player${survivalProgress.solved === 1 ? '' : 's'} in Survival mode.`;
+  dom['result-score'].textContent = `${survivalProgress.solved} solved`;
+  dom['result-grid'].textContent = survivalProgress.solved > 0 ? '⚾'.repeat(Math.min(10, survivalProgress.solved)) : '❌';
+  dom['result-summary'].innerHTML = `
+    <div class="recap-stat"><span>This run</span><strong>${survivalProgress.solved}</strong><em>Players solved</em></div>
+    <div class="recap-stat"><span>Best run</span><strong>${survivalBest}</strong><em>${isNewBest ? 'New best!' : 'Personal best'}</em></div>
+  `;
+  dom['result-clues'].innerHTML = '';
+  dom['player-photo-wrap'].classList.remove('photo-win', 'photo-loss');
+  dom['player-photo'].classList.remove('loaded');
+  dom['player-photo'].removeAttribute('src');
+  dom['player-photo-placeholder'].textContent = '⚾';
+  dom['player-photo-placeholder'].classList.remove('hidden', 'initials');
+  dom['survival-again-btn'].classList.remove('hidden');
+  dom['next-puzzle-timer'].textContent = 'Survival mode has no daily limit.';
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+}
+
+function renderHome() {
+  dom['home-screen'].classList.remove('hidden');
+  dom['puzzle-number'].classList.add('hidden');
+  dom['game-intro'].classList.add('hidden');
+  dom['game-screen'].classList.add('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['home-daily-meta'].textContent = `Puzzle #${today.puzzleNumber}${progress.finished ? ' · Completed' : ''}`;
+  dom['home-survival-meta'].textContent = `Best: ${survivalBest} solved`;
+}
+
+function setMode(mode) {
+  if (mode === gameMode) return;
+  gameMode = mode;
+  hideSurvivalReveal(); // in case a survival reveal was mid-flight when the mode changed
+  stopSurvivalTimer(); // always pause survival's clock when leaving its screen; restarted below if entering it running
+
+  if (mode === 'home') {
+    renderHome();
+    return;
+  }
+
+  dom['home-screen'].classList.add('hidden');
+  dom['puzzle-number'].classList.remove('hidden');
+  dom['game-intro'].classList.remove('hidden');
+
+  if (mode === 'survival') {
+    dom['intro-title'].textContent = 'Survive the mystery-player gauntlet.';
+    dom['intro-copy'].textContent = 'Solve fast to add time — clue 1 is worth +5s, clue 2 is +3s, clue 3 is +1s. Skips cost 3s.';
+    if (survivalProgress.running) {
+      startSurvivalTimer();
+      renderSurvivalGameScreen();
+    } else if (survivalProgress.finished) {
+      renderSurvivalResult();
+    } else {
+      renderSurvivalLanding();
+    }
+  } else {
+    dom['intro-title'].textContent = "Guess today's mystery MLB player.";
+    dom['intro-copy'].textContent = 'Use the clues to name the player. The opener is intentionally tough, so a 100-point solve should feel rare.';
+    dom['score-label'].textContent = 'Score';
+    dom['giveup-btn'].textContent = 'Give up';
+    dom['survival-start-btn'].classList.add('hidden');
+    dom['guess-form'].classList.remove('hidden');
+    dom['action-row'].classList.remove('hidden');
+    renderPuzzleMeta();
+    if (progress.finished) {
+      renderResultScreen();
+    } else {
+      renderGameScreen();
+    }
+  }
+}
+
 function buildShareText() {
   let squares = '';
   for (let i = 1; i < progress.clueIndex; i += 1) squares += '🟨';
@@ -411,9 +763,84 @@ async function buildShareImageFile() {
   return new File([blob], `dinger-${today.puzzleNumber}.png`, { type: 'image/png' });
 }
 
+async function buildSurvivalShareImageFile() {
+  const size = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const link = gameShareUrl();
+  const isNewBest = survivalProgress.solved > 0 && survivalProgress.solved >= survivalBest;
+  const bestText = isNewBest ? 'New personal best!' : `Best run: ${survivalBest} solved`;
+
+  const bg = ctx.createLinearGradient(0, 0, size, size);
+  bg.addColorStop(0, '#041226');
+  bg.addColorStop(0.55, '#0b2447');
+  bg.addColorStop(1, '#12386a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
+  ctx.beginPath();
+  ctx.moveTo(0, 790);
+  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
+  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
+  ctx.lineTo(1080, 1080);
+  ctx.lineTo(0, 1080);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(0, 825);
+  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
+  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
+  for (let i = 0; i < 12; i += 1) {
+    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
+  }
+
+  roundRect(ctx, 90, 110, 900, 760, 36);
+  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
+  ctx.fill();
+  ctx.strokeStyle = '#2a5f9e';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
+  ctx.fillStyle = '#bf0d3e';
+  ctx.font = '800 30px Arial, sans-serif';
+  ctx.fillText('SURVIVAL MODE', 540, 292);
+
+  ctx.fillStyle = '#f5f8ff';
+  ctx.font = '900 150px Arial, sans-serif';
+  ctx.fillText(`${survivalProgress.solved}`, 540, 460);
+  ctx.fillStyle = '#a9bdd8';
+  ctx.font = '800 34px Arial, sans-serif';
+  ctx.fillText('PLAYERS SOLVED', 540, 550);
+
+  ctx.fillStyle = isNewBest ? '#f5f8ff' : '#e83a59';
+  ctx.font = '800 40px Arial, sans-serif';
+  ctx.fillText(bestText, 540, 636);
+
+  ctx.fillStyle = '#d8e8ff';
+  ctx.font = '700 30px Arial, sans-serif';
+  ctx.fillText('Play at', 540, 790);
+  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
+
+  const blob = await canvasToBlob(canvas);
+  return new File([blob], `dinger-survival-${survivalProgress.solved}.png`, { type: 'image/png' });
+}
+
 function renderResultScreen() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
+  dom['survival-again-btn'].classList.add('hidden');
 
   dom['result-title'].textContent = progress.solved ? 'Nice work! ⚾' : 'Out of clues';
   dom['result-player'].textContent = `The answer was ${today.player.name} (${today.player.era})`;
@@ -469,6 +896,10 @@ function finalize(solved) {
 
 function handleGuessSubmit(e) {
   e.preventDefault();
+  if (gameMode === 'survival') {
+    handleSurvivalGuessSubmit();
+    return;
+  }
   if (progress.finished) return;
   const raw = dom['guess-input'].value;
   if (!raw.trim()) return;
@@ -487,6 +918,10 @@ function handleGuessSubmit(e) {
 }
 
 function handlePass() {
+  if (gameMode === 'survival') {
+    handleSurvivalPass();
+    return;
+  }
   if (progress.finished) return;
   const max = maxCluesFor(today.player);
   if (progress.clueIndex >= max) return;
@@ -499,11 +934,88 @@ function handlePass() {
 }
 
 function handleGiveUp() {
+  if (gameMode === 'survival') {
+    handleSurvivalSkip();
+    return;
+  }
   if (progress.finished) return;
   finalize(false);
 }
 
+function buildSurvivalShareText() {
+  return `⚾ Dinger Survival — ${survivalProgress.solved} solved (best: ${survivalBest})`;
+}
+
+async function handleSurvivalShare() {
+  const text = buildSurvivalShareText();
+  const url = gameShareUrl();
+  let imageFile = null;
+  dom['share-btn'].disabled = true;
+  dom['share-btn'].textContent = 'Preparing...';
+
+  try {
+    imageFile = await buildSurvivalShareImageFile();
+  } catch {
+    imageFile = null;
+  }
+
+  dom['share-btn'].disabled = false;
+
+  const shareData = {
+    title: 'Dinger Survival',
+    text: `${text}\n${url}`,
+    url,
+  };
+  const imageShareData = imageFile
+    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
+    : null;
+
+  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
+    try {
+      await navigator.share(imageShareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
+      }
+    }
+    return;
+  }
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+    try {
+      await navigator.share(shareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
+      }
+    }
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
+  } catch {
+    dom['share-btn'].textContent = `${text} ${url}`;
+  }
+  resetShareButtonSoon();
+}
+
 async function handleShare() {
+  if (gameMode === 'survival') {
+    await handleSurvivalShare();
+    return;
+  }
   const text = buildShareText();
   const url = gameShareUrl();
   let imageFile = null;
@@ -679,6 +1191,11 @@ function attachEvents() {
   dom['pass-btn'].addEventListener('click', handlePass);
   dom['giveup-btn'].addEventListener('click', handleGiveUp);
   dom['share-btn'].addEventListener('click', handleShare);
+  dom['survival-start-btn'].addEventListener('click', startSurvivalRun);
+  dom['survival-again-btn'].addEventListener('click', startSurvivalRun);
+  dom['home-btn'].addEventListener('click', () => setMode('home'));
+  dom['home-daily-btn'].addEventListener('click', () => setMode('daily'));
+  dom['home-survival-btn'].addEventListener('click', () => setMode('survival'));
 
   dom['stats-btn'].addEventListener('click', () => { renderStats(); toggleModal(dom['stats-modal'], true, dom['stats-btn']); });
   dom['close-stats'].addEventListener('click', () => toggleModal(dom['stats-modal'], false));
@@ -701,16 +1218,11 @@ function init() {
   currentDateStr = todayDateStr();
   today = getPuzzleForDate(currentDateStr);
   progress = loadProgress(currentDateStr) || defaultProgress();
+  survivalBest = loadSurvivalBest();
 
-  renderPuzzleMeta();
   attachEvents();
-
-  if (progress.finished) {
-    renderResultScreen();
-  } else {
-    renderGameScreen();
-    showFirstRunHelp();
-  }
+  setMode('home');
+  showFirstRunHelp();
 }
 
 document.addEventListener('DOMContentLoaded', init);

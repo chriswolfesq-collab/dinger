@@ -6,6 +6,10 @@ const CONFIG = {
   missPenalty: 15,
   maxClues: 10,
   startDate: '2024-01-01', // day 0 anchor for puzzle numbering + rotation
+  survivalStartTime: 30,
+  survivalMaxClues: 3,
+  survivalSkipPenalty: 3,
+  survivalClueBonus: [5, 3, 1], // bonus seconds indexed by (cluesRevealed - 1)
 };
 
 function todayDateStr(d = new Date()) {
@@ -78,6 +82,39 @@ function getCluesForPlayer(player) {
     endYearClue,
     finalClue,
   ].slice(0, CONFIG.maxClues);
+}
+
+// Survival is a fast arcade mode, so clues should be easy and — since only
+// one is ever shown at a time, in isolation — each must stand completely on
+// its own. player.survivalClues is a dedicated, purpose-written set (not a
+// slice of the sequential daily ladder, which relies on earlier clues for
+// context and wouldn't make sense read out of order).
+function getSurvivalCluesForPlayer(player) {
+  return player.survivalClues.slice(0, CONFIG.survivalMaxClues);
+}
+
+function survivalBonusForClueCount(cluesRevealed) {
+  const bonus = CONFIG.survivalClueBonus[cluesRevealed - 1];
+  return typeof bonus === 'number' ? bonus : 0;
+}
+
+function clampSurvivalTime(seconds) {
+  return Math.max(0, seconds);
+}
+
+function shuffledIds(ids, rng = Math.random) {
+  const shuffled = ids.slice();
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+// A fresh shuffled pass through every player, so a survival run never
+// repeats a player until the whole roster has come up once.
+function buildSurvivalQueue(rng = Math.random) {
+  return shuffledIds(PLAYERS.map(p => p.id), rng);
 }
 
 function normalize(str) {

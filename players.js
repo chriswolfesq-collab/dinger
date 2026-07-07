@@ -1,11 +1,21 @@
-// Player data for Dinger. Each player.clues array has exactly 7 items,
-// hand-ordered from vaguest to most identifying:
+// Player data for Dinger.
+//
+// clues: exactly 7 items, hand-ordered from vaguest to most identifying:
 //   [0-2] broad facts that could describe many players
 //   [3-5] moderate reveals (team, role, nickname)
 //   [6]   the single most identifying fact (career total, record, signature moment)
 // game.js interleaves these with 3 auto-generated era clues (decade window,
-// start year, end year) to build the full 10-clue ladder.
-// Clues never contain any part of the player's own name.
+// start year, end year) to build the full 10-clue daily ladder.
+//
+// survivalClues: exactly 3 items, each a fully standalone, easy/obvious fact
+// for the fast-paced Survival mode. Unlike `clues`, these are NOT meant to be
+// read in sequence off of each other — Survival only ever shows one player's
+// clues in isolation, so each entry must make sense entirely on its own (no
+// "also"/"too"/dangling references to a fact stated in an earlier clue).
+//
+// Clues never contain any part of the player's own name (nicknames that are
+// themselves the player's commonly-used identity, e.g. a shortened first
+// name, are the one exception already used throughout `clues` below).
 const PLAYERS = [
   {
     id: 'bonds',
@@ -13,6 +23,7 @@ const PLAYERS = [
     accept: ['barry bonds', 'bonds'],
     era: '1986–2007',
     clues: ['Left-handed slugger', 'California roots', 'Famous baseball family', 'Started with Pirates', 'Giants left fielder', 'Seven MVP awards', 'All-time home run leader'],
+    survivalClues: ['Giants left fielder with 762 career home runs', 'Won seven National League MVP awards', "Baseball's all-time home run king"],
   },
   {
     id: 'ruth',
@@ -20,6 +31,7 @@ const PLAYERS = [
     accept: ['babe ruth', 'ruth', 'the bambino'],
     era: '1914–1935',
     clues: ['Left-handed slugger', 'Started as a pitcher', 'Baltimore childhood', 'Sold by Boston', 'Yankees legend', 'Sultan of Swat nickname', '714 career homers'],
+    survivalClues: ['Yankees legend known as the Sultan of Swat', 'Started his career as a pitcher before becoming a slugger', 'Hit 714 career home runs wearing number 3'],
   },
   {
     id: 'aaron',
@@ -27,6 +39,7 @@ const PLAYERS = [
     accept: ['hank aaron', 'henry aaron', 'aaron', 'hammerin hank'],
     era: '1954–1976',
     clues: ['Right-handed slugger', 'Born in Mobile', 'Braves icon', 'Played in Milwaukee and Atlanta', 'Faced hate mail', 'Hammer nickname', 'Longtime home run king with 755 homers'],
+    survivalClues: ['Braves slugger known by the nickname "Hammer"', "Broke Babe Ruth's all-time home run record", 'Finished his career with 755 home runs'],
   },
   {
     id: 'jeter',
@@ -34,6 +47,7 @@ const PLAYERS = [
     accept: ['derek jeter', 'jeter', 'the captain'],
     era: '1995–2014',
     clues: ['Michigan roots', 'Yankees draft pick', 'Shortstop leader', 'October regular', 'Famous flip play', 'Team captain', '3,000-hit club, number 2 retired'],
+    survivalClues: ['Yankees shortstop known as The Captain', 'Famous for a heads-up relay play in the 2001 playoffs', 'Retired with exactly 3,000 hits and had number 2 retired'],
   },
   {
     id: 'rivera',
@@ -41,6 +55,7 @@ const PLAYERS = [
     accept: ['mariano rivera', 'rivera', 'mo', 'the sandman'],
     era: '1995–2013',
     clues: ['Panama native', 'Relief pitcher', 'Yankees closer', 'One famous pitch', 'Cutter master', 'Enter Sandman entrance', '652 career saves, last player wearing 42'],
+    survivalClues: ["Yankees closer who entered games to Metallica's Enter Sandman", 'Relied almost entirely on a single devastating cutter', 'All-time saves leader and the last player to wear number 42'],
   },
   {
     id: 'griffey',
@@ -48,6 +63,7 @@ const PLAYERS = [
     accept: ['ken griffey jr', 'ken griffey', 'griffey', 'junior', 'the kid'],
     era: '1989–2010',
     clues: ['Sweet lefty swing', 'Father played MLB', 'Seattle superstar', 'Backward cap', 'Center-field wall catches', 'The Kid nickname', '630 career homers, number 24 Mariners icon'],
+    survivalClues: ['Mariners outfielder known as The Kid', 'Famous for wearing his cap backward', 'Hit 630 career home runs wearing number 24'],
   },
   {
     id: 'ripken',
@@ -55,6 +71,7 @@ const PLAYERS = [
     accept: ['cal ripken jr', 'cal ripken', 'ripken', 'the iron man'],
     era: '1981–2001',
     clues: ['Maryland roots', 'Tall shortstop', 'Orioles lifer', 'Moved to third base', 'Iron Man nickname', 'Consecutive games streak', '2,632 straight games, passed Gehrig'],
+    survivalClues: ['Orioles shortstop known as the Iron Man', 'Played in 2,632 consecutive games', "Broke Lou Gehrig's consecutive games streak"],
   },
   {
     id: 'ryan',
@@ -62,6 +79,7 @@ const PLAYERS = [
     accept: ['nolan ryan', 'ryan', 'the ryan express'],
     era: '1966–1993',
     clues: ['Texas fireballer', 'Very long career', 'Fastball legend', 'Express nickname', 'Astros and Rangers years', 'Famous headlock fight', 'Most career strikeouts with 5,714'],
+    survivalClues: ['Fireballing pitcher known as "The Express"', 'Threw a record seven career no-hitters', 'All-time strikeout leader with 5,714 punchouts'],
   },
   {
     id: 'mays',
@@ -69,6 +87,7 @@ const PLAYERS = [
     accept: ['willie mays', 'mays', 'the say hey kid'],
     era: '1951–1973',
     clues: ['Alabama roots', 'Negro leagues start', 'Giants center fielder', 'Say Hey nickname', 'Polo Grounds star', 'Famous over-the-shoulder catch', '660 career homers, all-time center-field great'],
+    survivalClues: ['Giants center fielder known as the Say Hey Kid', 'Famous for an over-the-shoulder catch in the 1954 World Series', 'Hit 660 career home runs wearing number 24'],
   },
   {
     id: 'mantle',
@@ -76,6 +95,7 @@ const PLAYERS = [
     accept: ['mickey mantle', 'mantle', 'the mick', 'the commerce comet'],
     era: '1951–1968',
     clues: ['Switch-hitting slugger', 'Oklahoma hometown', 'Yankees center fielder', 'Knee injuries', 'The Mick nickname', '1956 Triple Crown', '536 career homers, Yankees dynasty star'],
+    survivalClues: ['Yankees center fielder known as The Mick', 'Switch-hitting slugger who won the 1956 Triple Crown', 'Hit 536 career home runs wearing number 7'],
   },
   {
     id: 'williams',
@@ -83,6 +103,7 @@ const PLAYERS = [
     accept: ['ted williams', 'williams', 'teddy ballgame', 'the splendid splinter'],
     era: '1939–1960',
     clues: ['Military pilot', 'Loved fishing', 'Red Sox left fielder', 'Splendid Splinter nickname', 'Defenses shifted against him', 'Last .400 hitter', '.406 season, 521 career homers'],
+    survivalClues: ['Red Sox left fielder known as the Splendid Splinter', 'The last player to hit .400 in a season, batting .406 in 1941', 'Served as a military pilot during two separate wars'],
   },
   {
     id: 'robinson',
@@ -90,6 +111,7 @@ const PLAYERS = [
     accept: ['jackie robinson', 'robinson', 'jackie'],
     era: '1947–1956',
     clues: ['Georgia birthplace', 'UCLA athlete', 'Army court-martial', 'Signed by Branch Rickey', 'Brooklyn Dodger', 'Broke color barrier', 'Number 42 retired league-wide, MLB celebrates his day'],
+    survivalClues: ["Broke Major League Baseball's color barrier in 1947", 'Brooklyn Dodgers infielder who won the first-ever Rookie of the Year award', 'Every MLB team retired his number 42'],
   },
   {
     id: 'koufax',
@@ -97,6 +119,7 @@ const PLAYERS = [
     accept: ['sandy koufax', 'koufax'],
     era: '1955–1966',
     clues: ['Brooklyn lefty', 'Big curveball', 'Dodgers ace', 'Dominant 1960s peak', 'Yom Kippur decision', 'Perfect game', 'Three Cy Youngs, retired young at his peak'],
+    survivalClues: ['Dodgers lefty known for a devastating curveball', 'Sat out a World Series start to observe Yom Kippur', 'Threw a perfect game and won three Cy Young Awards'],
   },
   {
     id: 'rose',
@@ -104,6 +127,7 @@ const PLAYERS = [
     accept: ['pete rose', 'rose', 'charlie hustle'],
     era: '1963–1986',
     clues: ['Switch hitter', 'Headfirst slides', 'Cincinnati icon', 'Charlie Hustle nickname', 'Big Red Machine', 'Player-manager', '4,256 career hits, MLB hit king'],
+    survivalClues: ['Reds star known as Charlie Hustle', 'Famous for sprinting to first base and sliding headfirst', "MLB's all-time hits leader with 4,256"],
   },
   {
     id: 'jackson',
@@ -111,6 +135,7 @@ const PLAYERS = [
     accept: ['reggie jackson', 'jackson', 'mr october'],
     era: '1967–1987',
     clues: ['Right-field power', 'Big strikeout totals', 'Oakland slugger', 'Yankees star', 'Had a candy bar named after him', 'Mr. October nickname', 'Three homers in one World Series game'],
+    survivalClues: ['Yankees slugger known as Mr. October', 'Hit three home runs in a single World Series game', 'Had a candy bar named after him'],
   },
   {
     id: 'ortiz',
@@ -118,6 +143,7 @@ const PLAYERS = [
     accept: ['david ortiz', 'ortiz', 'big papi', 'papi'],
     era: '1997–2016',
     clues: ['Dominican slugger', 'Started with Twins', 'Red Sox designated hitter', 'Big Papi nickname', 'Fenway favorite', '2004 curse breaker', '541 career homers, World Series MVP'],
+    survivalClues: ['Red Sox designated hitter known as Big Papi', "Helped break Boston's championship curse in 2004", 'Hit 541 career home runs wearing number 34'],
   },
   {
     id: 'johnson',
@@ -125,6 +151,7 @@ const PLAYERS = [
     accept: ['randy johnson', 'johnson', 'the big unit'],
     era: '1988–2009',
     clues: ['Very tall pitcher', 'Left-handed ace', 'Devastating slider', 'Mariners breakout', 'Diamondbacks champion', 'Big Unit nickname', '4,875 strikeouts, threw a perfect game'],
+    survivalClues: ['Towering left-handed pitcher known as the Big Unit', 'Threw a perfect game for the Diamondbacks', 'Second all-time in strikeouts with 4,875'],
   },
   {
     id: 'maddux',
@@ -132,6 +159,7 @@ const PLAYERS = [
     accept: ['greg maddux', 'maddux', 'the professor', 'mad dog'],
     era: '1986–2008',
     clues: ['Known for glasses', 'Command specialist', 'Started with Cubs', 'Braves rotation star', 'Professor nickname', 'Four straight Cy Youngs', '355 career wins, 18 Gold Gloves'],
+    survivalClues: ['Braves pitcher known as the Professor for his pinpoint control', 'Won four consecutive Cy Young Awards', 'Finished his career with 355 wins and 18 Gold Gloves'],
   },
   {
     id: 'gwynn',
@@ -139,6 +167,7 @@ const PLAYERS = [
     accept: ['tony gwynn', 'gwynn', 'mr padre'],
     era: '1982–2001',
     clues: ['College basketball player', 'Contact hitting master', 'San Diego lifer', 'Padres right fielder', 'Studied video constantly', 'Eight batting titles', '.338 career average, 3,000-hit club'],
+    survivalClues: ['Padres right fielder known as Mr. Padre', 'Won eight National League batting titles', 'Retired with a .338 career average and 3,000 hits'],
   },
   {
     id: 'ichiro',
@@ -146,6 +175,7 @@ const PLAYERS = [
     accept: ['ichiro suzuki', 'ichiro', 'suzuki'],
     era: '2001–2019',
     clues: ['Japanese star', 'Slap-hitting style', 'Right-field defense', 'Orix beginning', 'Seattle arrival', 'Rookie and MVP same year', '262-hit season, 3,000 MLB hits'],
+    survivalClues: ['Mariners outfielder famous for his slap-hitting style', 'Set the single-season hits record with 262 in 2004', 'Won Rookie of the Year and MVP in the same season'],
   },
   {
     id: 'gehrig',
@@ -153,6 +183,7 @@ const PLAYERS = [
     accept: ['lou gehrig', 'gehrig', 'the iron horse'],
     era: '1923–1939',
     clues: ['Columbia student', 'Yankees first baseman', 'Murderers Row bat', 'Iron Horse nickname', 'Consecutive games streak', 'Luckiest man speech', '2,130 straight games, number 4 retired'],
+    survivalClues: ['Yankees first baseman known as the Iron Horse', "Gave the famous 'luckiest man' farewell speech", 'Played 2,130 consecutive games before his career ended'],
   },
   {
     id: 'wagner',
@@ -160,6 +191,7 @@ const PLAYERS = [
     accept: ['honus wagner', 'wagner', 'the flying dutchman'],
     era: '1897–1917',
     clues: ['Dead-ball era star', 'Bowlegged runner', 'Pirates shortstop', 'Flying Dutchman nickname', 'Eight batting titles', 'Famous T206 card', '3,420 career hits, early shortstop great'],
+    survivalClues: ['Pirates shortstop known as the Flying Dutchman', 'His rare baseball card is one of the most valuable ever made', 'Won eight batting titles in the dead-ball era'],
   },
   {
     id: 'young',
@@ -167,6 +199,7 @@ const PLAYERS = [
     accept: ['cy young', 'young'],
     era: '1890–1911',
     clues: ['19th-century pitcher', 'Right-handed workhorse', 'Cleveland Spiders', 'Cyclone nickname', 'Played for Boston too', 'Perfect game', 'Most career wins with 511, award named after him'],
+    survivalClues: ['19th-century pitcher who won a record 511 games', 'Pitched for the Cleveland Spiders and later Boston', "MLB's top pitching award is named after him"],
   },
   {
     id: 'mathewson',
@@ -174,6 +207,7 @@ const PLAYERS = [
     accept: ['christy mathewson', 'mathewson', 'big six'],
     era: '1900–1916',
     clues: ['Bucknell athlete', 'Known as a gentleman', 'New York Giants ace', 'Fadeaway pitch', 'Three shutouts in 1905 Series', 'Big Six nickname', '373 career wins, inaugural Hall class'],
+    survivalClues: ['New York Giants ace known as Big Six', 'Threw three shutouts in the 1905 World Series', 'Won 373 career games with a devastating fadeaway pitch'],
   },
   {
     id: 'hornsby',
@@ -181,6 +215,7 @@ const PLAYERS = [
     accept: ['rogers hornsby', 'hornsby', 'rajah'],
     era: '1915–1937',
     clues: ['Right-handed hitter', 'Fiery personality', 'Second baseman', 'Cardinals star', 'Rajah nickname', 'Two Triple Crowns', '.424 season, .358 career average'],
+    survivalClues: ['Cardinals second baseman known as Rajah', 'Batted .424 in a single season, the modern MLB record', 'Won two Triple Crowns and seven batting titles'],
   },
   {
     id: 'musial',
@@ -188,6 +223,7 @@ const PLAYERS = [
     accept: ['stan musial', 'musial', 'stan the man'],
     era: '1941–1963',
     clues: ['Pennsylvania-born hitter', 'Left-handed line-drive hitter', 'Outfielder and first baseman', 'Cardinals icon', 'The Man nickname', 'Three MVP awards', '3,630 career hits, seven batting titles'],
+    survivalClues: ['Cardinals outfielder known simply as "The Man"', 'Won seven National League batting titles', 'Finished his career with 3,630 hits'],
   },
   {
     id: 'berra',
@@ -195,6 +231,7 @@ const PLAYERS = [
     accept: ['yogi berra', 'berra', 'yogi'],
     era: '1946–1965',
     clues: ['Famous quotes', 'Yankees catcher', 'Great catcher and manager', 'Managed both New York teams', 'Caught a perfect game', 'Ten World Series rings', 'Number 8 retired, famous "not over" quote'],
+    survivalClues: ['Yankees catcher famous for his quirky quotes', 'Won a record ten World Series championships', 'Caught the only perfect game in World Series history'],
   },
   {
     id: 'bench',
@@ -202,6 +239,7 @@ const PLAYERS = [
     accept: ['johnny bench', 'bench'],
     era: '1967–1983',
     clues: ['Oklahoma catcher', 'Huge hands', 'Cincinnati star', 'Big Red Machine', 'One-handed catching style', 'Two MVP awards', 'Ten Gold Gloves, 389 career homers'],
+    survivalClues: ['Reds catcher and leader of the Big Red Machine', 'Won back-to-back National League MVP awards', 'Won ten Gold Gloves with a revolutionary one-handed catching style'],
   },
   {
     id: 'clemente',
@@ -209,6 +247,7 @@ const PLAYERS = [
     accept: ['roberto clemente', 'clemente'],
     era: '1955–1972',
     clues: ['Puerto Rican star', 'Powerful throwing arm', 'Pirates right fielder', 'Four batting titles', 'Humanitarian legacy', 'Nicaragua relief flight', 'Exactly 3,000 hits, died in a plane crash'],
+    survivalClues: ['Pirates right fielder from Puerto Rico', 'Died in a plane crash while delivering earthquake relief supplies', 'Finished his career with exactly 3,000 hits'],
   },
   {
     id: 'paige',
@@ -216,6 +255,7 @@ const PLAYERS = [
     accept: ['satchel paige', 'paige'],
     era: '1926–1965',
     clues: ['Showman style', 'Negro leagues pitcher', 'Famous age mystery', 'Kansas City Monarchs', 'Hesitation pitch', 'Cleveland MLB debut', 'Oldest MLB rookie, pitched into his fifties'],
+    survivalClues: ['Negro Leagues legend famous for his showmanship on the mound', 'Became the oldest rookie in MLB history', 'Starred for the Kansas City Monarchs with a legendary fastball'],
   },
   {
     id: 'joshgibson',
@@ -223,6 +263,7 @@ const PLAYERS = [
     accept: ['josh gibson'],
     era: '1930–1946',
     clues: ['Negro leagues slugger', 'Catcher with huge power', 'Legendary long homers', 'Homestead Grays', 'Pittsburgh Crawfords', 'Called the Black Babe Ruth', 'Posthumous Hall selection, MLB records updated later'],
+    survivalClues: ['Negro Leagues catcher nicknamed the Black Babe Ruth', 'Starred for the Homestead Grays and Pittsburgh Crawfords', 'Hit legendary long home runs and entered the Hall of Fame after his death'],
   },
   {
     id: 'henderson',
@@ -230,6 +271,7 @@ const PLAYERS = [
     accept: ['rickey henderson', 'henderson', 'man of steal'],
     era: '1979–2003',
     clues: ['Leadoff hitter', 'Talked in third person', 'Oakland speedster', 'Athletics superstar', 'Man of Steal nickname', '130 steals in a season', 'All-time runs and steals leader, 1,406 career steals'],
+    survivalClues: ['Athletics leadoff hitter known as the Man of Steal', "MLB's all-time leader in stolen bases and runs scored", 'Stole 130 bases in a single season'],
   },
   {
     id: 'brett',
@@ -237,6 +279,7 @@ const PLAYERS = [
     accept: ['george brett', 'brett'],
     era: '1973–1993',
     clues: ['Left-handed hitter', 'Sweet swing', 'Third baseman', 'Royals lifer', '.390 chase', 'Pine tar game', '3,154 career hits, 1985 champion'],
+    survivalClues: ['Royals third baseman at the center of the famous Pine Tar Incident', 'Chased a .400 batting average during the 1980 season', 'Retired with 3,154 career hits, all with Kansas City'],
   },
   {
     id: 'schmidt',
@@ -244,6 +287,7 @@ const PLAYERS = [
     accept: ['mike schmidt', 'schmidt'],
     era: '1972–1989',
     clues: ['Power and defense', 'Booed by home fans', 'Phillies third baseman', 'Ten Gold Gloves', 'Three MVP awards', '1980 champion', '548 career homers, all-time great third baseman'],
+    survivalClues: ['Phillies third baseman considered the best ever at the position', 'Won three National League MVP awards', 'Hit 548 career home runs with ten Gold Gloves'],
   },
   {
     id: 'ozzie',
@@ -251,6 +295,7 @@ const PLAYERS = [
     accept: ['ozzie smith', 'the wizard'],
     era: '1978–1996',
     clues: ['Defensive wizard', 'Switch hitter', 'Cardinals shortstop', 'Backflip entrance', '13 Gold Gloves', 'The Wizard nickname', '1985 walk-off homer, Hall of Fame glove'],
+    survivalClues: ['Cardinals shortstop known as "The Wizard"', 'Famous for backflipping onto the field before games', 'Won 13 consecutive Gold Gloves at shortstop'],
   },
   {
     id: 'boggs',
@@ -258,6 +303,7 @@ const PLAYERS = [
     accept: ['wade boggs', 'boggs'],
     era: '1982–1999',
     clues: ['Contact hitter', 'Superstitious reputation', 'Red Sox third baseman', 'Chicken routine', 'Later Yankee champion', 'Horseback victory lap', '.328 career average, 3,010 hits'],
+    survivalClues: ['Red Sox third baseman famous for eating chicken before every game', 'Won five American League batting titles', 'Retired with a .328 career average and 3,010 hits'],
   },
   {
     id: 'thomas',
@@ -265,6 +311,7 @@ const PLAYERS = [
     accept: ['frank thomas', 'the big hurt'],
     era: '1990–2008',
     clues: ['Football background', 'Massive right-handed hitter', 'Auburn athlete', 'White Sox slugger', 'Big Hurt nickname', 'Back-to-back MVPs', '521 career homers, huge on-base numbers'],
+    survivalClues: ['White Sox slugger known as the Big Hurt', 'Won back-to-back American League MVP awards', 'Hit 521 career home runs as a first baseman and DH'],
   },
   {
     id: 'chipper',
@@ -272,6 +319,7 @@ const PLAYERS = [
     accept: ['chipper jones', 'chipper'],
     era: '1993–2012',
     clues: ['Switch hitter', 'First overall pick', 'Braves third baseman', 'Atlanta dynasty piece', 'Crushed Mets pitching', '1999 MVP', '468 career homers, Larry was his real first name'],
+    survivalClues: ['Braves third baseman and switch hitter', 'Won the 1999 National League MVP award', "His actual first name is Larry, a fact many fans don't know"],
   },
   {
     id: 'clemens',
@@ -279,6 +327,7 @@ const PLAYERS = [
     accept: ['roger clemens', 'clemens', 'the rocket'],
     era: '1984–2007',
     clues: ['Texas power pitcher', '20-strikeout games', 'Red Sox ace', 'Rocket nickname', 'Blue Jays rebound', 'Yankees and Astros years', 'Seven Cy Youngs, 354 career wins'],
+    survivalClues: ['Power pitcher known as "The Rocket"', 'Won a record seven Cy Young Awards', 'Struck out 20 batters in a single game, twice'],
   },
   {
     id: 'pedro',
@@ -286,6 +335,7 @@ const PLAYERS = [
     accept: ['pedro martinez', 'martinez', 'pedro'],
     era: '1992–2009',
     clues: ['Small frame', 'Dominican ace', 'Expos breakout', 'Red Sox legend', 'Yankee Stadium chant', 'Famous Zimmer incident', 'Three Cy Youngs, 2000 ERA of 1.74'],
+    survivalClues: ['Red Sox ace despite a famously small frame', 'Posted a dominant 1.74 ERA in the year 2000', 'Won three Cy Young Awards'],
   },
   {
     id: 'arod',
@@ -293,6 +343,7 @@ const PLAYERS = [
     accept: ['alex rodriguez', 'a-rod', 'arod'],
     era: '1994–2016',
     clues: ['First overall pick', 'Seattle shortstop', 'Rangers mega-contract', 'Yankees third baseman', 'A-Rod nickname', 'Biogenesis suspension', '696 career homers, three MVP awards'],
+    survivalClues: ['Yankees third baseman known as A-Rod', 'Signed the richest contract in sports history at the time', 'Hit 696 career home runs and won three MVP awards'],
   },
   {
     id: 'manny',
@@ -300,6 +351,7 @@ const PLAYERS = [
     accept: ['manny ramirez', 'ramirez', 'manny'],
     era: '1993–2011',
     clues: ['Quirky personality', 'Unpredictable superstar persona', 'Cleveland slugger', 'Red Sox left fielder', 'Green Monster home runs', 'High-five cutoff play', '555 career homers, postseason RBI machine'],
+    survivalClues: ['Red Sox left fielder known for his unpredictable, laid-back personality', "Helped break Boston's championship curse in 2004", 'Hit 555 career home runs'],
   },
   {
     id: 'thome',
@@ -307,6 +359,7 @@ const PLAYERS = [
     accept: ['jim thome', 'thome'],
     era: '1991–2012',
     clues: ['Gentle reputation', 'Pointed bat before pitches', 'Cleveland power bat', 'First baseman and DH', 'Very high strikeouts', 'Played for five teams', '612 career homers, Hall of Fame slugger'],
+    survivalClues: ['Cleveland slugger known for pointing his bat at pitchers before every pitch', 'Hit 612 career home runs', 'Beloved across baseball for his humble, gentle personality'],
   },
   {
     id: 'pujols',
@@ -314,6 +367,7 @@ const PLAYERS = [
     accept: ['albert pujols', 'pujols', 'the machine'],
     era: '2001–2022',
     clues: ['Dominican-born slugger', 'The Machine nickname', 'Cardinals first baseman', 'Three MVP awards', '2006 champion', 'Angels contract', '703 career homers, 3,000-hit club'],
+    survivalClues: ['Cardinals first baseman known as The Machine', 'Won three National League MVP awards', 'Finished his career with 703 home runs and 3,000 hits'],
   },
   {
     id: 'guerrero',
@@ -321,6 +375,7 @@ const PLAYERS = [
     accept: ['vladimir guerrero', 'guerrero', 'vlad'],
     era: '1996–2011',
     clues: ['Free-swinging hitter', 'Huge throwing arm', 'Dominican right fielder', 'Expos star', 'Often batted gloveless', 'Famous bad-ball hitter', '2004 AL MVP, Vlad nickname'],
+    survivalClues: ['Expos and Angels right fielder known as Vlad', 'Famous for swinging at pitches far outside the strike zone', 'Won the 2004 American League MVP award'],
   },
   {
     id: 'pudge',
@@ -328,6 +383,7 @@ const PLAYERS = [
     accept: ['ivan rodriguez', 'pudge', 'pudge rodriguez'],
     era: '1991–2011',
     clues: ['Elite throwing arm', 'Puerto Rican catcher', 'Texas Rangers star', 'Pudge nickname', '1999 MVP', 'Marlins champion', '13 Gold Gloves, most games caught by a catcher'],
+    survivalClues: ['Rangers catcher known as Pudge', 'Won 13 Gold Gloves thanks to an elite throwing arm', 'Won the 1999 American League MVP award'],
   },
   {
     id: 'fernando',
@@ -335,6 +391,7 @@ const PLAYERS = [
     accept: ['fernando valenzuela', 'valenzuela', 'fernando'],
     era: '1980–1997',
     clues: ['Looked skyward during delivery', 'Screwball specialist', 'Mexican lefty', 'Dodgers phenomenon', 'Rookie-year craze', 'Rookie of the Year', 'Cy Young same season, 1981 champion'],
+    survivalClues: ['Dodgers pitcher whose rookie season sparked a nationwide sensation', 'Famous for looking skyward during his windup', 'Won Rookie of the Year and the Cy Young in the same season'],
   },
   {
     id: 'trout',
@@ -342,6 +399,7 @@ const PLAYERS = [
     accept: ['mike trout', 'trout'],
     era: '2011–present',
     clues: ['Loves weather reports', 'Five-tool star', 'New Jersey hometown', 'Angels center fielder', 'Limited playoff appearances', 'Three MVP awards', 'Generational WAR totals, Millville Meteor nickname'],
+    survivalClues: ['Angels center fielder known as the Millville Meteor', 'Won three American League MVP awards', 'Widely considered the best all-around player of his generation'],
   },
   {
     id: 'kershaw',
@@ -349,6 +407,7 @@ const PLAYERS = [
     accept: ['clayton kershaw', 'kershaw'],
     era: '2008–present',
     clues: ['Big curveball', 'Charity work in Zambia', 'Dallas lefty', 'Dodgers ace', 'Regular-season dominance', 'Postseason scrutiny', 'Three Cy Youngs, 2020 champion'],
+    survivalClues: ['Dodgers ace known for a devastating curveball', 'Won three Cy Young Awards and a National League MVP', 'Won a World Series championship with the Dodgers in 2020'],
   },
   {
     id: 'ohtani',
@@ -356,6 +415,7 @@ const PLAYERS = [
     accept: ['shohei ohtani', 'ohtani'],
     era: '2018–present',
     clues: ['Pitcher and hitter', 'Compared to Ruth', 'Japanese two-way star', 'Angels debut', 'Famous dog named Decoy', 'Unanimous MVP seasons', '50-50 season, Dodgers mega-deal'],
+    survivalClues: ['Japanese two-way star who both pitches and hits at an elite level', 'First player to hit 50 home runs and steal 50 bases in a season', 'Signed a record-breaking contract with the Dodgers'],
   },
   {
     id: 'judge',
@@ -363,6 +423,7 @@ const PLAYERS = [
     accept: ['aaron judge', 'judge'],
     era: '2016–present',
     clues: ['Very tall outfielder', 'Towering home runs', 'Yankees right fielder', 'Right-field fan section', 'Team captain', 'Chased Roger Maris', '62-homer season, AL home run record'],
+    survivalClues: ['Towering Yankees right fielder and team captain', 'Broke the American League home run record with 62 in a season', 'Wears number 99'],
   },
   {
     id: 'betts',
@@ -370,6 +431,7 @@ const PLAYERS = [
     accept: ['mookie betts', 'betts', 'mookie'],
     era: '2014–present',
     clues: ['Elite bowler', 'Tennessee athlete', 'Red Sox right fielder', '2018 MVP', 'Boston champion', 'Blockbuster Dodgers trade', 'Played right field and shortstop, modern five-tool star'],
+    survivalClues: ['Red Sox and Dodgers right fielder and former MVP', 'A nationally ranked bowler away from the diamond', 'Won World Series titles with both Boston and Los Angeles'],
   },
   {
     id: 'harper',
@@ -377,6 +439,7 @@ const PLAYERS = [
     accept: ['bryce harper', 'harper'],
     era: '2012–present',
     clues: ['Flashy eye black', 'Teen cover star', 'Nationals phenom', 'Chosen One label', 'Right-field power', 'Two MVP awards', 'Phillies leader, moved to first base'],
+    survivalClues: ['Phillies slugger known for his flashy eye black', "Was a teenage cover star dubbed 'The Chosen One'", 'Won two National League MVP awards'],
   },
   {
     id: 'freeman',
@@ -384,6 +447,7 @@ const PLAYERS = [
     accept: ['freddie freeman', 'freeman'],
     era: '2010–present',
     clues: ['Left-handed hitter', 'Canadian roots', 'Braves first baseman', '2020 MVP', 'Emotional Atlanta exit', 'Dodgers star', 'World Series walk-off grand slam'],
+    survivalClues: ['Dodgers first baseman, formerly the face of the Braves', 'Won the 2020 National League MVP award', 'Hit a walk-off grand slam in the World Series'],
   },
   {
     id: 'degrom',
@@ -391,6 +455,7 @@ const PLAYERS = [
     accept: ['jacob degrom', 'degrom'],
     era: '2014–present',
     clues: ['Former college shortstop', 'Long hair era', 'Mets right-hander', 'Little run support', 'Historically low ERA peak', '100-mph starter', 'Back-to-back Cy Youngs, Rangers contract'],
+    survivalClues: ['Mets ace known for a mid-100s mph fastball', 'Won back-to-back Cy Young Awards', 'Converted from college shortstop into a dominant starting pitcher'],
   },
   {
     id: 'puckett',
@@ -398,6 +463,7 @@ const PLAYERS = [
     accept: ['kirby puckett', 'puckett'],
     era: '1984–1995',
     clues: ['Stocky build', 'Explosive hitter', 'Minnesota center fielder', 'Beloved Twin', 'Two World Series titles', '1991 walk-off homer', 'Glaucoma ended his career, Game 6 hero'],
+    survivalClues: ['Twins center fielder loved for his stocky, energetic style', 'Hit a walk-off homer to force Game 7 of the 1991 World Series', 'His career ended suddenly due to glaucoma'],
   },
   {
     id: 'yount',
@@ -405,6 +471,7 @@ const PLAYERS = [
     accept: ['robin yount', 'yount'],
     era: '1974–1993',
     clues: ['Debuted at 18', 'Quiet superstar', 'Milwaukee Brewer', 'Started at shortstop', 'Moved to outfield', 'MVP at two positions', '3,142 career hits, two-time MVP'],
+    survivalClues: ['Brewers lifer who won MVP awards at two different positions', 'Debuted in the majors at just 18 years old', 'Retired with 3,142 career hits'],
   },
   {
     id: 'murray',
@@ -412,6 +479,7 @@ const PLAYERS = [
     accept: ['eddie murray', 'murray', 'steady eddie'],
     era: '1977–1997',
     clues: ['Switch hitter', 'Quiet superstar', 'Orioles first baseman', 'Steady nickname', 'Later Dodgers and Mets', '500-homer club', '3,000-hit club, 504 career homers'],
+    survivalClues: ['Orioles first baseman known for quiet, steady consistency', 'Member of both the 500 home run and 3,000 hit clubs', 'Switch hitter who finished with 504 career homers'],
   },
   {
     id: 'eckersley',
@@ -419,6 +487,7 @@ const PLAYERS = [
     accept: ['dennis eckersley', 'eckersley', 'eck'],
     era: '1975–1998',
     clues: ['Started as a starter', 'Threw a no-hitter', 'Converted to closer', 'Oakland Athletics star', 'Low three-quarter delivery', 'Gave up a famous 1988 World Series homer', '1992 MVP and Cy Young, 390 career saves'],
+    survivalClues: ['Started as a starting pitcher before becoming a dominant Oakland closer', 'Won both AL MVP and Cy Young in 1992', "Gave up Kirk Gibson's famous 1988 World Series homer"],
   },
   {
     id: 'bobgibson',
@@ -426,6 +495,7 @@ const PLAYERS = [
     accept: ['bob gibson'],
     era: '1959–1975',
     clues: ['Also played basketball', 'Intimidating mound presence', 'Omaha native', 'Cardinals ace', 'Harlem Globetrotters link', '1968 pitching season', '1.12 ERA, two Cy Youngs'],
+    survivalClues: ['Cardinals ace famous for his intimidating glare on the mound', 'Posted a 1.12 ERA in 1968, one of the greatest seasons ever', 'Won two Cy Young Awards and two World Series MVPs'],
   },
   {
     id: 'seaver',
@@ -433,6 +503,7 @@ const PLAYERS = [
     accept: ['tom seaver', 'seaver', 'tom terrific'],
     era: '1967–1986',
     clues: ['Powerful drop-and-drive delivery', 'California right-hander', 'Mets franchise ace', 'Terrific nickname', 'Miracle Mets leader', 'Three Cy Youngs', '311 career wins, 1969 champion'],
+    survivalClues: ['Mets ace nicknamed "Terrific" for his dominant pitching', 'Led the 1969 "Miracle Mets" to a championship', 'Won three Cy Young Awards and 311 career games'],
   },
   {
     id: 'piazza',
@@ -440,6 +511,7 @@ const PLAYERS = [
     accept: ['mike piazza', 'piazza'],
     era: '1992–2007',
     clues: ['Late draft pick', 'Catcher with elite bat', 'Dodgers debut', 'Mets superstar', 'Post-9/11 home run', '396 homers as a catcher', '427 career homers, all-time slugging catcher'],
+    survivalClues: ['Mets catcher considered the best-hitting catcher ever', 'Hit an emotional home run in the first game back after 9/11', 'Hit 427 career home runs despite being a very late draft pick'],
   },
   {
     id: 'molitor',
@@ -447,6 +519,7 @@ const PLAYERS = [
     accept: ['paul molitor', 'molitor', 'the ignitor'],
     era: '1978–1998',
     clues: ['Played all over the infield', 'Minnesota native', 'Brewers star', 'The Ignitor nickname', 'Designated hitter later', '39-game hitting streak', '3,319 career hits, 1993 World Series MVP'],
+    survivalClues: ['Brewers star known as the Ignitor', 'Put together a 39-game hitting streak', 'Won World Series MVP with the Blue Jays in 1993'],
   },
   {
     id: 'sosa',
@@ -454,6 +527,7 @@ const PLAYERS = [
     accept: ['sammy sosa', 'sosa', 'slammin sammy'],
     era: '1989–2007',
     clues: ['Home run hop', 'Dominican right fielder', 'Cubs slugger', 'Slammin nickname', '1998 home run race', 'Three 60-homer seasons', '609 career homers, 1998 NL MVP'],
+    survivalClues: ['Cubs slugger known for his home run hop and chest thump', 'Battled Mark McGwire in the epic 1998 home run race', 'Hit 609 career home runs'],
   },
   {
     id: 'mcgwire',
@@ -461,6 +535,7 @@ const PLAYERS = [
     accept: ['mark mcgwire', 'mcgwire', 'big mac'],
     era: '1986–2001',
     clues: ['Tall first baseman', 'Oakland Bash Brother', 'Cardinals slugger later', 'Big Mac nickname', '1998 home run race', 'Broke the Maris record', '70-homer season, 583 career homers'],
+    survivalClues: ['Oakland and St. Louis slugger known as Big Mac', "Broke Roger Maris's single-season home run record with 70", "Part of Oakland's famous 'Bash Brothers' duo"],
   },
   {
     id: 'verlander',
@@ -468,6 +543,7 @@ const PLAYERS = [
     accept: ['justin verlander', 'verlander'],
     era: '2005–present',
     clues: ['High fastball late in games', 'Virginia right-hander', 'Tigers ace', 'No-hitter collector', 'MVP as a pitcher', 'Astros champion', 'Three Cy Youngs, World Series ring in Houston'],
+    survivalClues: ['Tigers and Astros ace known for a dominant fastball late in games', 'Won an MVP award as a starting pitcher, a rare feat', 'Won three Cy Young Awards and a World Series in Houston'],
   },
   {
     id: 'scherzer',
@@ -475,6 +551,7 @@ const PLAYERS = [
     accept: ['max scherzer', 'scherzer', 'mad max'],
     era: '2008–present',
     clues: ['Different colored eyes', 'Mad nickname', 'Missouri right-hander', 'Nationals ace', '20-strikeout game', 'Two no-hitters', 'Three Cy Youngs, 2019 champion'],
+    survivalClues: ['Fiery ace known for intense, snarling competitiveness on the mound', 'Has one blue eye and one brown eye', 'Struck out 20 batters in a game and won three Cy Youngs'],
   },
   {
     id: 'cabrera',
@@ -482,6 +559,7 @@ const PLAYERS = [
     accept: ['miguel cabrera', 'cabrera', 'miggy'],
     era: '2003–2023',
     clues: ['Opposite-field power', 'Venezuelan slugger', 'Marlins debut', 'Tigers first baseman', 'Miggy nickname', '2012 Triple Crown', '500-homer and 3,000-hit club, two MVP awards'],
+    survivalClues: ['Tigers first baseman known as Miggy', 'Won the 2012 Triple Crown, the first in 45 years', 'Member of both the 500 home run and 3,000 hit clubs'],
   },
   {
     id: 'posey',
@@ -489,6 +567,7 @@ const PLAYERS = [
     accept: ['buster posey', 'posey'],
     era: '2009–2021',
     clues: ['Georgia catcher', 'Florida State star', 'Giants cornerstone', 'Rookie of the Year', 'Home-plate collision changed the rules', '2012 NL MVP', 'Three championships, modern franchise catcher'],
+    survivalClues: ['Giants catcher and franchise cornerstone', 'Won the 2012 National League MVP award', 'Won three World Series titles with San Francisco'],
   },
   {
     id: 'larkin',
@@ -496,6 +575,7 @@ const PLAYERS = [
     accept: ['barry larkin', 'larkin'],
     era: '1986–2004',
     clues: ['Local college star', 'Speed and defense', 'Cincinnati shortstop', 'Reds lifer', '1990 champion', '1995 NL MVP', '12-time All-Star, Hall of Fame shortstop'],
+    survivalClues: ['Reds shortstop and hometown Cincinnati star', 'Won the 1995 National League MVP award', 'Twelve-time All-Star known for speed and defense'],
   },
   {
     id: 'smoltz',
@@ -503,6 +583,7 @@ const PLAYERS = [
     accept: ['john smoltz', 'smoltz'],
     era: '1988–2009',
     clues: ['Electric slider', 'Starter and closer', 'Michigan right-hander', 'Braves rotation pillar', '1996 Cy Young', '200-plus wins', '150-plus saves, rare hybrid pitching career'],
+    survivalClues: ['Braves pitcher who succeeded as both a starter and a closer', 'Won the 1996 NL Cy Young Award', 'Only pitcher in history with 200 wins and 150 saves'],
   },
   {
     id: 'glavine',
@@ -510,6 +591,7 @@ const PLAYERS = [
     accept: ['tom glavine', 'glavine'],
     era: '1987–2008',
     clues: ['Drafted in two sports', 'Worked the outside corner', 'Massachusetts lefty', 'Braves control artist', 'Two Cy Youngs', '1995 World Series MVP', '305 career wins, Hall of Fame command pitcher'],
+    survivalClues: ['Braves lefty famous for working the outside corner', 'Won two Cy Young Awards', 'Won World Series MVP in 1995'],
   },
   {
     id: 'mccovey',
@@ -517,6 +599,7 @@ const PLAYERS = [
     accept: ['willie mccovey', 'mccovey', 'stretch'],
     era: '1959–1980',
     clues: ['Left-handed slugger', 'Towering height at first base', 'Alabama-born first baseman', 'San Francisco first baseman', 'Stretch nickname', '1969 NL MVP', '521 career homers, cove named after him'],
+    survivalClues: ['Giants first baseman known as Stretch', 'Won the 1969 National League MVP award', "A cove beyond his home ballpark's outfield wall is named after him"],
   },
   {
     id: 'banks',
@@ -524,6 +607,7 @@ const PLAYERS = [
     accept: ['ernie banks', 'banks', 'mr cub'],
     era: '1953–1971',
     clues: ['Famously sunny disposition', 'Play-two enthusiasm catchphrase', 'Chicago shortstop turned first baseman', 'Negro leagues start', 'Mr. Cub nickname', 'Back-to-back MVP awards', '512 career homers, never played in a postseason'],
+    survivalClues: ['Cubs legend known as Mr. Cub', "Famous for the catchphrase 'Let's play two'", 'Won back-to-back MVP awards despite never reaching the postseason'],
   },
   {
     id: 'snider',
@@ -531,6 +615,7 @@ const PLAYERS = [
     accept: ['duke snider', 'snider'],
     era: '1947–1964',
     clues: ['Left-handed center fielder', 'One of three iconic New York center fielders', 'Los Angeles-born but a Brooklyn star', 'Dodgers slugger', 'Duke of Flatbush nickname', 'Power bat in Ebbets Field', 'Four homers in a single World Series, subject of a famous baseball song'],
+    survivalClues: ['Brooklyn Dodgers center fielder known as the Duke of Flatbush', 'One of three legendary New York center fielders alongside Mantle and Mays', 'Hit four home runs in a single World Series'],
   },
   {
     id: 'campanella',
@@ -538,6 +623,7 @@ const PLAYERS = [
     accept: ['roy campanella', 'campanella', 'campy'],
     era: '1948–1957',
     clues: ['Negro leagues background', 'Italian and Black heritage', 'Brooklyn catcher', 'Three-time NL MVP', 'Campy nickname', 'Car accident ended his career', 'Paralyzed after a 1958 crash, number 39 retired'],
+    survivalClues: ['Brooklyn Dodgers catcher known as Campy', 'Won three National League MVP awards', 'A car accident left him paralyzed and ended his career'],
   },
   {
     id: 'yaz',
@@ -545,6 +631,7 @@ const PLAYERS = [
     accept: ['carl yastrzemski', 'yastrzemski', 'yaz'],
     era: '1961–1983',
     clues: ['Left-handed hitter', 'Long Island roots', 'Boston left fielder', 'Followed a legend in left field', 'Yaz nickname', '1967 Triple Crown', '3,000-hit and 400-homer club, last AL Triple Crown winner for decades'],
+    survivalClues: ['Red Sox left fielder known as Yaz', "Won the 1967 Triple Crown during the 'Impossible Dream' season", 'Succeeded Ted Williams in left field at Fenway Park'],
   },
   {
     id: 'kaline',
@@ -552,6 +639,7 @@ const PLAYERS = [
     accept: ['al kaline', 'kaline', 'mr tiger'],
     era: '1953–1974',
     clues: ['Signed straight from high school', 'Gold Glove defender', 'Baltimore childhood', 'Detroit right fielder', 'Mr. Tiger nickname', 'Youngest batting champion at the time', '3,000-hit club, never played a minor league game'],
+    survivalClues: ['Tigers right fielder known as Mr. Tiger', 'Signed straight out of high school and never played in the minors', 'Reached 3,000 career hits, all with Detroit'],
   },
   {
     id: 'killebrew',
@@ -559,6 +647,7 @@ const PLAYERS = [
     accept: ['harmon killebrew', 'killebrew', 'killer'],
     era: '1954–1975',
     clues: ['Right-handed slugger', 'Idaho roots', 'Washington Senators start', 'Followed the team to Minnesota', 'Killer nickname', 'Rumored silhouette for a league logo', '573 career homers, 1969 AL MVP'],
+    survivalClues: ['Twins slugger known as Killer', 'Hit 573 career home runs', 'Rumored to be the inspiration for the MLB logo silhouette'],
   },
   {
     id: 'feller',
@@ -566,6 +655,7 @@ const PLAYERS = [
     accept: ['bob feller', 'feller', 'rapid robert'],
     era: '1936–1956',
     clues: ['Debuted as a teenager', 'Iowa farm upbringing', 'Cleveland fireballer', 'Missed years for military service', 'Rapid Robert nickname', 'Opening Day no-hitter', 'Three career no-hitters, wartime Navy veteran ace'],
+    survivalClues: ['Cleveland fireballer known for blazing speed on the mound', 'Threw a no-hitter on Opening Day', 'Missed several prime seasons serving in the Navy during World War II'],
   },
   {
     id: 'spahn',
@@ -573,6 +663,7 @@ const PLAYERS = [
     accept: ['warren spahn', 'spahn'],
     era: '1942–1965',
     clues: ['Left-handed workhorse', 'High leg-kick delivery', 'Buffalo upbringing', 'Braves franchise ace', 'Missed years for World War II service', 'Bronze Star recipient', 'Most wins ever by a left-hander with 363'],
+    survivalClues: ['Braves lefty with the most career wins ever by a left-handed pitcher', 'Won 363 career games for Boston and Milwaukee', 'Missed several seasons serving in World War II'],
   },
   {
     id: 'ford',
@@ -580,6 +671,7 @@ const PLAYERS = [
     accept: ['whitey ford', 'ford', 'the chairman of the board'],
     era: '1950–1967',
     clues: ['Left-handed control artist', 'New York City native', 'Yankees rotation ace', 'Chairman of the Board nickname', 'Best postseason winning percentage of his era', '1961 Cy Young winner', 'Long scoreless World Series innings streak, 236 career wins'],
+    survivalClues: ['Yankees ace known as the Chairman of the Board', 'Holds the record for consecutive scoreless innings in World Series play', 'Won the 1961 Cy Young Award'],
   },
   {
     id: 'carlton',
@@ -587,6 +679,7 @@ const PLAYERS = [
     accept: ['steve carlton', 'carlton', 'lefty'],
     era: '1965–1988',
     clues: ['Left-handed strikeout artist', 'Miami upbringing', 'Traded from Cardinals to Phillies', 'Devastating slider', 'Lefty nickname', 'Avoided media interviews for years', 'Four Cy Young awards, 329 career wins'],
+    survivalClues: ['Phillies ace known simply as Lefty', 'Won four Cy Young Awards', 'Famously refused to talk to the media for years'],
   },
   {
     id: 'winfield',
@@ -594,6 +687,7 @@ const PLAYERS = [
     accept: ['dave winfield', 'winfield'],
     era: '1973–1995',
     clues: ['Drafted in multiple pro sports', 'Minnesota native', 'San Diego debut', 'Yankees big-money signing', 'Owner conflict overshadowed his peak', 'Toronto World Series champion', '3,000-hit and 400-homer club'],
+    survivalClues: ['Yankees and Padres outfielder drafted by teams in multiple sports', 'Won a World Series championship with the Blue Jays', 'Member of both the 3,000 hit and 400 home run clubs'],
   },
   {
     id: 'dawson',
@@ -601,6 +695,7 @@ const PLAYERS = [
     accept: ['andre dawson', 'dawson', 'the hawk'],
     era: '1976–1996',
     clues: ['Bad knees from years on turf', 'Miami-born outfielder', 'Montreal debut', 'The Hawk nickname', 'Signed a blank contract with the Cubs', '1987 NL MVP on a last-place team', '400 homers and 300 steals club'],
+    survivalClues: ['Expos and Cubs outfielder known as the Hawk', 'Won the 1987 NL MVP award while playing for a last-place team', 'Member of the 400 home run and 300 stolen base club'],
   },
   {
     id: 'sandberg',
@@ -608,6 +703,7 @@ const PLAYERS = [
     accept: ['ryne sandberg', 'sandberg', 'ryno'],
     era: '1981–1997',
     clues: ['Spokane native', 'Traded to Chicago as a throw-in', 'Chicago second baseman', 'Ryno nickname', 'Famous walk-off game vs the Cardinals', '1984 NL MVP', 'Nine Gold Gloves, long errorless-games streak at second'],
+    survivalClues: ['Cubs second baseman known as Ryno', 'Won the 1984 National League MVP award', 'Won nine consecutive Gold Gloves at second base'],
   },
   {
     id: 'palmer',
@@ -615,6 +711,7 @@ const PLAYERS = [
     accept: ['jim palmer', 'palmer'],
     era: '1965–1984',
     clues: ['Adopted as an infant', 'High leg-kick delivery', 'Baltimore right-hander', 'Never allowed a grand slam', 'Three Cy Young awards', 'Eight 20-win seasons', 'Underwear model later in life, 268 career wins'],
+    survivalClues: ['Orioles ace who never allowed a career grand slam', 'Won three Cy Young Awards', 'Later became a well-known underwear model'],
   },
   {
     id: 'fingers',
@@ -622,6 +719,7 @@ const PLAYERS = [
     accept: ['rollie fingers', 'fingers'],
     era: '1968–1985',
     clues: ['Signature handlebar mustache', 'Ohio-born reliever', 'Oakland dynasty closer', 'Three straight championships', '1981 AL MVP and Cy Young', 'Early relief-ace trophy pioneer', 'All-time saves record at retirement, 341 career saves'],
+    survivalClues: ['Oakland closer instantly recognizable by his handlebar mustache', 'Won three straight World Series titles with the A\'s', 'Won the 1981 AL MVP and Cy Young as a reliever'],
   },
   {
     id: 'gossage',
@@ -629,6 +727,7 @@ const PLAYERS = [
     accept: ['goose gossage', 'gossage', 'rich gossage'],
     era: '1972–1994',
     clues: ['Intimidating high-90s fastball', 'Distinctive mustache and glare', 'Colorado native', 'Yankees fireman role', 'Multi-inning closer usage', 'Goose nickname', '1978 pennant race heroics, 310 career saves'],
+    survivalClues: ['Yankees closer known as Goose, famous for a blazing fastball', 'One of the most intimidating relievers in baseball history', 'Finished his career with 310 saves'],
   },
   {
     id: 'sutter',
@@ -636,6 +735,7 @@ const PLAYERS = [
     accept: ['bruce sutter', 'sutter'],
     era: '1976–1988',
     clues: ['Popularized a signature pitch', 'Split-finger fastball master', 'Pennsylvania native', 'Cubs breakout reliever', 'Later a Cardinals closer', '1979 NL Cy Young', 'Pioneered a long deferred-money contract, 300 career saves'],
+    survivalClues: ['Reliever who popularized the split-finger fastball', 'Won the 1979 NL Cy Young Award as a closer', 'Finished his career with exactly 300 saves'],
   },
   {
     id: 'hoffman',
@@ -643,6 +743,7 @@ const PLAYERS = [
     accept: ['trevor hoffman', 'hoffman'],
     era: '1993–2010',
     clues: ['Drafted as a shortstop', 'Converted to pitcher in the minors', 'San Diego closer for over a decade', 'Devastating changeup specialist', 'Entrance song was Hell\'s Bells', 'First to reach 500 saves', 'Held the career saves record with 601'],
+    survivalClues: ["Padres closer who entered games to AC/DC's Hell's Bells", 'The first pitcher in history to reach 500 career saves', 'Finished his career with 601 saves'],
   },
   {
     id: 'biggio',
@@ -650,6 +751,7 @@ const PLAYERS = [
     accept: ['craig biggio', 'biggio'],
     era: '1988–2007',
     clues: ['Started his career as a catcher', 'Moved to second base', 'Long Island native', 'Houston franchise lifer', 'Modern hit-by-pitch record holder', 'Half of a beloved Astros duo', '3,000-hit club, twenty seasons with one team'],
+    survivalClues: ['Astros lifer who played catcher, second base, and outfield', 'Holds the modern record for most times hit by a pitch', 'Reached 3,000 career hits, all with Houston'],
   },
   {
     id: 'bagwell',
@@ -657,6 +759,7 @@ const PLAYERS = [
     accept: ['jeff bagwell', 'bagwell'],
     era: '1991–2005',
     clues: ['Unusual wide crouching stance', 'Massachusetts roots', 'Traded away from Boston as a prospect', 'Houston first baseman', '1991 NL Rookie of the Year', 'Half of a beloved Astros duo', '1994 NL MVP in a shortened season, 449 career homers'],
+    survivalClues: ['Astros first baseman known for an unusually wide batting stance', 'Won the 1994 National League MVP award', 'Hit 449 career home runs'],
   },
   {
     id: 'nomar',
@@ -664,6 +767,7 @@ const PLAYERS = [
     accept: ['nomar garciaparra', 'garciaparra', 'nomar'],
     era: '1996–2009',
     clues: ['Elaborate batting-glove ritual', 'California-born shortstop', 'First name is his father\'s spelled backward', 'Boston shortstop star', 'Part of a famous shortstop trio', '1997 AL Rookie of the Year', 'Traded away before a title year, two batting titles'],
+    survivalClues: ['Red Sox shortstop famous for an elaborate batting glove ritual', 'Part of a famous trio of star shortstops alongside Jeter and A-Rod', 'Won the 1997 AL Rookie of the Year award'],
   },
   {
     id: 'walker',
@@ -671,6 +775,7 @@ const PLAYERS = [
     accept: ['larry walker', 'walker'],
     era: '1989–2005',
     clues: ['Almost pursued hockey instead', 'Canadian-born outfielder', 'Strong throwing arm', 'Montreal debut', 'Colorado slugger', 'Thin-air power numbers debated', '1997 NL MVP, three batting titles'],
+    survivalClues: ['Canadian-born outfielder who starred for the Colorado Rockies', 'Won the 1997 National League MVP award', 'Won three batting titles playing at high-altitude Coors Field'],
   },
   {
     id: 'rice',
@@ -678,6 +783,7 @@ const PLAYERS = [
     accept: ['jim rice', 'rice'],
     era: '1974–1989',
     clues: ['Right-handed power hitter', 'Reputation for immense bat strength', 'South Carolina native', 'Boston left fielder', 'Feared middle-of-the-order bat', 'Whole career with one team', '1978 AL MVP, 382 career homers'],
+    survivalClues: ['Red Sox left fielder known for immense power', 'Won the 1978 American League MVP award', 'Played his entire career in Boston, hitting 382 home runs'],
   },
   {
     id: 'beltre',
@@ -685,6 +791,7 @@ const PLAYERS = [
     accept: ['adrian beltre', 'beltre'],
     era: '1994–2018',
     clues: ['Debuted as a teenager', 'Elite defensive third baseman', 'Dominican-born third baseman', 'Seattle power-spike season', 'Texas Rangers cornerstone', 'Disliked having his head touched', '3,000-hit club, 477 career homers'],
+    survivalClues: ['Rangers third baseman known for disliking having his head touched', 'Won five Gold Gloves as an elite defender', 'Member of both the 3,000 hit and 400 home run clubs'],
   },
   {
     id: 'mauer',
@@ -692,6 +799,7 @@ const PLAYERS = [
     accept: ['joe mauer', 'mauer'],
     era: '2004–2018',
     clues: ['Left-handed line-drive hitter', 'Rare batting-title run for a catcher', 'Minnesota-born catcher', 'Hometown Twins draft pick', '2009 AL MVP', 'Concussions forced a position change', 'Three career batting titles, finished at first base'],
+    survivalClues: ['Twins catcher and hometown hero from Minnesota', 'Won the 2009 American League MVP award', 'A rare catcher who won three career batting titles'],
   },
   {
     id: 'mattingly',
@@ -699,6 +807,7 @@ const PLAYERS = [
     accept: ['don mattingly', 'mattingly', 'donnie baseball'],
     era: '1982–1995',
     clues: ['Left-handed contact and power hitter', 'Slick defensive glove work', 'Indiana native', 'Yankees first baseman', 'Donnie Baseball nickname', '1985 AL MVP', 'Named team captain, back injury slowed his peak'],
+    survivalClues: ['Yankees first baseman known as Donnie Baseball', 'Won the 1985 American League MVP award', 'Served as Yankees team captain in the early 1990s'],
   },
   {
     id: 'acuna',
@@ -706,6 +815,7 @@ const PLAYERS = [
     accept: ['ronald acuna jr', 'ronald acuna', 'acuna'],
     era: '2018–present',
     clues: ['Explosive leadoff power', 'Elite speed threat', 'Venezuelan outfielder', 'Atlanta rookie sensation', '2018 NL Rookie of the Year', 'ACL injury interruption', '40 homers and 70 steals in one year, unanimous MVP season'],
+    survivalClues: ['Braves outfielder from Venezuela with elite speed and power', 'First player ever to hit 40 home runs and steal 70 bases in a season', 'Won the National League MVP award unanimously'],
   },
   {
     id: 'soto',
@@ -713,6 +823,7 @@ const PLAYERS = [
     accept: ['juan soto', 'soto'],
     era: '2018–present',
     clues: ['Elite plate discipline', 'Signature batting-stance shuffle', 'Dominican-born hitter', 'Washington debut as a teenager', '2019 World Series champion', 'Traded from Washington to San Diego', 'Later played in the Bronx, record-setting free agent contract'],
+    survivalClues: ['Dominican slugger known for his signature batting-stance shuffle', 'Won a World Series championship with Washington as a teenager', 'Signed one of the richest contracts in sports history'],
   },
   {
     id: 'speaker',
@@ -720,6 +831,7 @@ const PLAYERS = [
     accept: ['tris speaker', 'speaker', 'the grey eagle'],
     era: '1907–1928',
     clues: ['Played a shallow center field', 'Dead-ball era star', 'Texas-born center fielder', 'Traded from Boston to Cleveland', 'Player-manager for a champion', 'Second all-time in hits at retirement', 'All-time doubles record holder, 3,514 career hits'],
+    survivalClues: ['Dead-ball era center fielder famous for playing a very shallow outfield', 'Holds the all-time record for career doubles', 'Finished his career with 3,514 hits'],
   },
 ];
 

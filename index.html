@@ -14,26 +14,48 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BE%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 <div class="app">
   <header>
-    <h1><span class="ball">⚾</span> DINGER</h1>
+    <button id="home-btn" class="home-btn" type="button" aria-label="Go to home screen">
+      <h1><span class="ball">⚾</span> DINGER</h1>
+    </button>
     <div class="header-actions">
       <button id="stats-btn" class="icon-btn" title="Stats">📊</button>
       <button id="help-btn" class="icon-btn" title="How to play">?</button>
     </div>
   </header>
 
-  <div id="puzzle-number" class="puzzle-number">Puzzle #—</div>
-
-  <section class="game-intro" aria-label="Game summary">
-    <h2>Guess today's mystery MLB player.</h2>
-    <p>Use the clues to name the player. The opener is intentionally tough, so a 100-point solve should feel rare.</p>
+  <section id="home-screen" class="home-screen" aria-label="Choose a mode">
+    <p class="home-intro">Pick a way to play.</p>
+    <button id="home-daily-btn" class="home-mode-card" type="button">
+      <span class="home-mode-icon" aria-hidden="true">📅</span>
+      <span class="home-mode-copy">
+        <span class="home-mode-title">Daily</span>
+        <span class="home-mode-desc">One mystery player a day. Everyone gets the same puzzle.</span>
+        <span id="home-daily-meta" class="home-mode-meta">Puzzle #—</span>
+      </span>
+    </button>
+    <button id="home-survival-btn" class="home-mode-card" type="button">
+      <span class="home-mode-icon" aria-hidden="true">⏱️</span>
+      <span class="home-mode-copy">
+        <span class="home-mode-title">Survival</span>
+        <span class="home-mode-desc">Race the clock and solve as many players as you can.</span>
+        <span id="home-survival-meta" class="home-mode-meta">Best: 0 solved</span>
+      </span>
+    </button>
   </section>
 
-  <main id="game-screen">
+  <div id="puzzle-number" class="puzzle-number hidden">Puzzle #—</div>
+
+  <section id="game-intro" class="game-intro hidden" aria-label="Game summary">
+    <h2 id="intro-title">Guess today's mystery MLB player.</h2>
+    <p id="intro-copy">Use the clues to name the player. The opener is intentionally tough, so a 100-point solve should feel rare.</p>
+  </section>
+
+  <main id="game-screen" class="hidden">
     <section class="mystery-player" aria-label="Mystery player">
       <div class="mystery-photo" aria-hidden="true">
         <span>?</span>
@@ -45,11 +67,13 @@
     </section>
 
     <div class="score-display">
-      <span class="score-label">Score</span>
+      <span id="score-label" class="score-label">Score</span>
       <span id="score-value">100</span>
     </div>
 
     <ol id="clue-list" class="clue-list"></ol>
+
+    <button id="survival-start-btn" class="primary-btn survival-start hidden" type="button">Start Survival Run</button>
 
     <form id="guess-form" autocomplete="off">
       <input id="guess-input" type="text" placeholder="Who's the player?" autocomplete="off" />
@@ -57,11 +81,24 @@
     </form>
     <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
-    <div class="action-row">
+    <div id="action-row" class="action-row">
       <button id="pass-btn" class="secondary-btn">Reveal next clue (−10)</button>
       <button id="giveup-btn" class="ghost-btn">Give up</button>
     </div>
   </main>
+
+  <div id="survival-reveal-overlay" class="survival-reveal-overlay hidden" role="status" aria-live="polite">
+    <div class="survival-reveal-card">
+      <div class="result-photo-wrap survival-reveal-photo-wrap">
+        <div class="result-photo-ring">
+          <img id="survival-reveal-photo" class="result-photo" alt="" />
+          <span id="survival-reveal-placeholder" class="result-photo-placeholder">⚾</span>
+        </div>
+      </div>
+      <div id="survival-reveal-name" class="survival-reveal-name"></div>
+      <div id="survival-reveal-bonus" class="survival-reveal-bonus"></div>
+    </div>
+  </div>
 
   <section id="result-screen" class="hidden">
     <div id="player-photo-wrap" class="result-photo-wrap">
@@ -78,6 +115,7 @@
 
     <ol id="result-clues" class="clue-list result-clue-list"></ol>
 
+    <button id="survival-again-btn" class="primary-btn hidden" type="button">Play Again</button>
     <button id="share-btn" class="primary-btn">Share Result</button>
     <p id="next-puzzle-timer" class="next-puzzle-timer"></p>
   </section>
@@ -117,12 +155,22 @@
         <h3>Daily Play</h3>
         <p>Everyone gets the same puzzle for the day. Once you finish, you can share your result without spoiling the answer.</p>
       </div>
+      <div class="help-section">
+        <h3>Survival Mode</h3>
+        <ul class="help-list">
+          <li>You start with 30 seconds and face an endless stream of players.</li>
+          <li>Each player gives you at most 3 clues.</li>
+          <li>Solve on clue 1 for +5s, clue 2 for +3s, clue 3 for +1s.</li>
+          <li>Skipping a player costs 3 seconds.</li>
+          <li>The run ends when the clock hits zero.</li>
+        </ul>
+      </div>
       <button id="close-help-2" class="primary-btn">Play</button>
     </div>
   </section>
 </div>
-<script src="players.js?v=18" defer></script>
-<script src="game.js?v=18" defer></script>
-<script src="app.js?v=18" defer></script>
+<script src="players.js?v=26" defer></script>
+<script src="game.js?v=26" defer></script>
+<script src="app.js?v=26" defer></script>
 </body>
 </html>

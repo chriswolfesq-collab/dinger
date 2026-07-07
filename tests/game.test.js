@@ -8,6 +8,7 @@ const {
   CONFIG, daysBetween, getPuzzleForDate, parseEraRange, decadeLabel, eraWindowLabel,
   getCluesForPlayer, normalize, withoutSuffix, compact, lastNameOf, levenshtein,
   isUniqueLastName, isCorrectGuess, computeScore, formatCountdown, PLAYERS, DAILY_ORDER,
+  getSurvivalCluesForPlayer, survivalBonusForClueCount, clampSurvivalTime, buildSurvivalQueue,
 } = ctx;
 
 describe('normalize / withoutSuffix / compact', () => {
@@ -207,5 +208,66 @@ describe('getCluesForPlayer', () => {
     assert.match(clues[0], /^Career window sits in the/);
     assert.match(clues[4], /^Career began in/);
     assert.match(clues[8], /^Career ended in|still marked active/);
+  });
+});
+
+describe('survival mode helpers', () => {
+  test('getSurvivalCluesForPlayer returns the dedicated survivalClues set, not a slice of the daily ladder', () => {
+    const player = PLAYERS.find(p => p.id === 'bonds');
+    const survivalClues = getSurvivalCluesForPlayer(player);
+    assert.equal(survivalClues.length, CONFIG.survivalMaxClues);
+    assert.deepEqual(survivalClues, player.survivalClues);
+  });
+
+  test('every player has exactly 3 non-empty, standalone survivalClues', () => {
+    for (const player of PLAYERS) {
+      assert.equal(player.survivalClues.length, CONFIG.survivalMaxClues, `player "${player.id}" has ${player.survivalClues.length} survival clues`);
+      player.survivalClues.forEach((clue, i) => {
+        assert.ok(typeof clue === 'string' && clue.length > 0, `player "${player.id}" survival clue #${i + 1} is empty/undefined`);
+      });
+    }
+  });
+
+  // Regression guard for a real bug: survival clues used to be sliced from
+  // the tail of the sequential daily ladder, so some read like "Played for
+  // Boston too" — nonsensical without the earlier daily clue that named the
+  // first team. Survival clues must never depend on words like this.
+  test('no survivalClue leans on a dangling reference to an unstated earlier fact', () => {
+    const danglingWords = /\b(too|also|another|the other|as well|likewise)\b/i;
+    for (const player of PLAYERS) {
+      player.survivalClues.forEach((clue, i) => {
+        assert.doesNotMatch(clue, danglingWords, `player "${player.id}" survival clue #${i + 1} ("${clue}") may depend on unstated context`);
+      });
+    }
+  });
+
+  test('survivalBonusForClueCount matches the 5/3/1 tier', () => {
+    assert.equal(survivalBonusForClueCount(1), 5);
+    assert.equal(survivalBonusForClueCount(2), 3);
+    assert.equal(survivalBonusForClueCount(3), 1);
+  });
+
+  test('survivalBonusForClueCount is 0 outside the defined tiers', () => {
+    assert.equal(survivalBonusForClueCount(4), 0);
+    assert.equal(survivalBonusForClueCount(0), 0);
+  });
+
+  test('clampSurvivalTime floors at zero but has no upper bound', () => {
+    assert.equal(clampSurvivalTime(-10), 0);
+    assert.equal(clampSurvivalTime(0), 0);
+    assert.equal(clampSurvivalTime(500), 500);
+  });
+
+  test('buildSurvivalQueue is a full shuffled permutation of every player id', () => {
+    const queue = buildSurvivalQueue(() => 0.42);
+    assert.equal(queue.length, PLAYERS.length);
+    assert.equal(new Set(queue).size, PLAYERS.length);
+    PLAYERS.forEach(p => assert.ok(queue.includes(p.id)));
+  });
+
+  test('buildSurvivalQueue actually shuffles (order differs from insertion order)', () => {
+    const inOrder = PLAYERS.map(p => p.id);
+    const queue = buildSurvivalQueue(() => 0.9);
+    assert.notDeepEqual(queue, inOrder);
   });
 });
