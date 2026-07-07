@@ -105,12 +105,38 @@ function saveTimedBest(best) {
   }
 }
 
+const PHOTO_BLITZ_BEST_KEY = 'dinger_photo_blitz_best_v1';
+
+function loadPhotoBlitzBest() {
+  try {
+    const val = Number(localStorage.getItem(PHOTO_BLITZ_BEST_KEY));
+    return Number.isFinite(val) && val > 0 ? val : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function savePhotoBlitzBest(best) {
+  try {
+    localStorage.setItem(PHOTO_BLITZ_BEST_KEY, String(best));
+  } catch {
+    // Best score stays in memory only if storage is unavailable.
+  }
+}
+
 function defaultSurvivalProgress() {
   return { queue: [], currentPlayerId: null, clueIndex: 1, solved: 0, timeLeft: CONFIG.survivalStartTime, running: false, finished: false };
 }
 
 function defaultTimedProgress() {
   return { queue: [], currentPlayerId: null, clueIndex: 1, solved: 0, timeLeft: CONFIG.timedStartTime, running: false, finished: false };
+}
+
+// currentEntry is {id, url} for the photo on screen right now (or null while
+// the very first photo of a run is still loading). skipped collects
+// {id, name} for the end-of-run "players you skipped" recap.
+function defaultPhotoBlitzProgress() {
+  return { queue: [], currentEntry: null, skipped: [], solved: 0, timeLeft: CONFIG.photoBlitzStartTime, running: false, finished: false };
 }
 
 const dom = {};
@@ -121,10 +147,13 @@ let countdownTimer = null;
 let gameMode = null;
 let survivalProgress = defaultSurvivalProgress();
 let timedProgress = defaultTimedProgress();
+let photoBlitzProgress = defaultPhotoBlitzProgress();
 let survivalTimer = null;
 let timedTimer = null;
+let photoBlitzTimer = null;
 let survivalBest = 0;
 let timedBest = 0;
+let photoBlitzBest = 0;
 let survivalRevealTimer = null;
 
 const SURVIVAL_REVEAL_MS = 1400; // how long the solved player's photo stays up, paused off the clock
@@ -140,6 +169,9 @@ function cacheDom() {
     'survival-start-btn', 'survival-again-btn', 'intro-title', 'intro-copy', 'action-row', 'game-intro', 'mode-menu-btn',
     'survival-reveal-overlay', 'survival-reveal-photo', 'survival-reveal-placeholder', 'survival-reveal-name', 'survival-reveal-bonus',
     'home-btn', 'home-screen', 'home-daily-btn', 'home-survival-btn', 'home-timed-btn', 'home-daily-meta', 'home-survival-meta', 'home-timed-meta',
+    'home-photoblitz-btn', 'home-photoblitz-meta',
+    'photo-blitz-photo-wrap', 'photo-blitz-photo', 'photo-blitz-placeholder',
+    'result-skipped', 'mystery-player',
   ].forEach(id => { dom[id] = document.getElementById(id); });
 }
 
@@ -208,6 +240,72 @@ async function fetchPlayerPhoto(name) {
     persistPhotoCache();
     return null;
   }
+}
+
+const PHOTO_COLOR_CACHE_KEY = 'dinger_photo_color_cache_v1';
+const PHOTO_COLOR_SATURATION_THRESHOLD = 14; // avg max-min RGB channel delta; grayscale/sepia scans land well under this
+
+function loadPhotoColorCache() {
+  try {
+    const raw = localStorage.getItem(PHOTO_COLOR_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistPhotoColorCache() {
+  try {
+    localStorage.setItem(PHOTO_COLOR_CACHE_KEY, JSON.stringify(photoColorCache));
+  } catch {
+    // Storage full or unavailable — cache just stays in-memory for this session.
+  }
+}
+
+const photoColorCache = loadPhotoColorCache();
+
+function loadImageForColorCheck(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('image failed to load'));
+    img.src = url;
+  });
+}
+
+// Downsamples the photo onto a tiny canvas and measures average color
+// saturation (max channel - min channel per pixel). True black-and-white or
+// sepia-toned scans land near zero; real color photos of skin/grass/jerseys
+// land well above the threshold. If the canvas read fails (e.g. a photo host
+// without permissive CORS headers), the check is inconclusive — we let the
+// player through rather than silently starving Photo Blitz's pool.
+async function isColorPhotoUrl(url) {
+  if (Object.prototype.hasOwnProperty.call(photoColorCache, url)) return photoColorCache[url];
+  let verdict = true;
+  try {
+    const img = await loadImageForColorCheck(url);
+    const size = 32;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, size, size);
+    const { data } = ctx.getImageData(0, 0, size, size);
+    let totalDelta = 0;
+    let pixelCount = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      totalDelta += Math.max(r, g, b) - Math.min(r, g, b);
+      pixelCount += 1;
+    }
+    verdict = (totalDelta / pixelCount) > PHOTO_COLOR_SATURATION_THRESHOLD;
+  } catch {
+    verdict = true;
+  }
+  photoColorCache[url] = verdict;
+  persistPhotoColorCache();
+  return verdict;
 }
 
 function initialsOf(name) {
@@ -347,6 +445,39 @@ function loadNextTimedPlayer() {
   timedProgress.timeLeft = CONFIG.timedStartTime;
 }
 
+function photoBlitzCurrentPlayer() {
+  return photoBlitzProgress.currentEntry ? PLAYERS.find(p => p.id === photoBlitzProgress.currentEntry.id) || null : null;
+}
+
+// Tries a single candidate id: fetches its photo and verifies it's a color
+// photo (unless the player is on the black-and-white exception list).
+// Returns {id, url} on success or null if this candidate should be skipped.
+async function tryPreparePhotoBlitzEntry(id) {
+  const player = PLAYERS.find(p => p.id === id);
+  if (!player) return null;
+  const url = await fetchPlayerPhoto(player.name);
+  if (!url) return null;
+  if (CONFIG.photoBlitzBwAllowlist.includes(id)) return { id, url };
+  const isColor = await isColorPhotoUrl(url);
+  return isColor ? { id, url } : null;
+}
+
+// Pulls candidates from the shuffled queue (refilling from the full roster
+// when it runs dry) until one qualifies. Disqualified candidates (no photo,
+// or black-and-white and not on the exception list) are silently dropped —
+// the player never sees them.
+async function findNextPhotoBlitzEntry() {
+  for (;;) {
+    if (!photoBlitzProgress.queue.length) {
+      photoBlitzProgress.queue = buildSurvivalQueue();
+    }
+    const id = photoBlitzProgress.queue.shift();
+    if (!id) return null;
+    const entry = await tryPreparePhotoBlitzEntry(id);
+    if (entry) return entry;
+  }
+}
+
 function stopSurvivalTimer() {
   if (survivalTimer) {
     clearInterval(survivalTimer);
@@ -376,6 +507,22 @@ function startTimedTimer() {
     timedProgress.timeLeft = clampSurvivalTime(timedProgress.timeLeft - 1);
     updateTimedTimeDisplay();
     if (timedProgress.timeLeft <= 0) endTimedRun();
+  }, 1000);
+}
+
+function stopPhotoBlitzTimer() {
+  if (photoBlitzTimer) {
+    clearInterval(photoBlitzTimer);
+    photoBlitzTimer = null;
+  }
+}
+
+function startPhotoBlitzTimer() {
+  stopPhotoBlitzTimer();
+  photoBlitzTimer = setInterval(() => {
+    photoBlitzProgress.timeLeft = clampSurvivalTime(photoBlitzProgress.timeLeft - 1);
+    updatePhotoBlitzTimeDisplay();
+    if (photoBlitzProgress.timeLeft <= 0) endPhotoBlitzRun();
   }, 1000);
 }
 
@@ -512,6 +659,40 @@ function endTimedRun(showFinalReveal = true, revealText = "Time's up") {
   renderTimedResult();
 }
 
+async function startPhotoBlitzRun() {
+  clearSurvivalReveal();
+  hideSurvivalReveal();
+  photoBlitzProgress = defaultPhotoBlitzProgress();
+  photoBlitzProgress.queue = buildSurvivalQueue();
+  photoBlitzProgress.running = true;
+  showFeedback('', '');
+  dom['guess-input'].value = '';
+  renderPhotoBlitzLoading();
+
+  const first = await findNextPhotoBlitzEntry();
+  if (gameMode !== 'photoblitz' || !photoBlitzProgress.running) return; // navigated away mid-load
+  photoBlitzProgress.currentEntry = first;
+  renderPhotoBlitzGameScreen();
+  startPhotoBlitzTimer();
+  dom['guess-input'].focus();
+}
+
+// Unlike Survival/Timed, the photo is already fully visible the whole time
+// in this mode, so there's nothing left to "reveal" when the clock simply
+// runs out — go straight to results.
+function endPhotoBlitzRun() {
+  clearSurvivalReveal();
+  hideSurvivalReveal();
+  stopPhotoBlitzTimer();
+  photoBlitzProgress.running = false;
+  photoBlitzProgress.finished = true;
+  if (photoBlitzProgress.solved > photoBlitzBest) {
+    photoBlitzBest = photoBlitzProgress.solved;
+    savePhotoBlitzBest(photoBlitzBest);
+  }
+  renderPhotoBlitzResult();
+}
+
 function renderSurvivalLanding() {
   dom['game-screen'].classList.remove('hidden');
   dom['result-screen'].classList.add('hidden');
@@ -538,6 +719,85 @@ function renderTimedLanding() {
   dom['guess-form'].classList.add('hidden');
   dom['action-row'].classList.add('hidden');
   showFeedback('', '');
+}
+
+function renderPhotoBlitzLanding() {
+  dom['game-screen'].classList.remove('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['mystery-player'].classList.add('hidden');
+  dom['clue-list'].classList.add('hidden');
+  dom['photo-blitz-photo-wrap'].classList.remove('hidden');
+  resetPhotoBlitzPhotoDisplay();
+  dom['score-label'].textContent = 'Time';
+  dom['score-value'].textContent = String(CONFIG.photoBlitzStartTime);
+  dom['puzzle-number'].textContent = `Photo Blitz Best: ${photoBlitzBest} named`;
+  dom['survival-start-btn'].classList.remove('hidden');
+  dom['survival-start-btn'].textContent = 'Start Photo Blitz';
+  dom['guess-form'].classList.add('hidden');
+  dom['action-row'].classList.add('hidden');
+  showFeedback('', '');
+}
+
+function renderPhotoBlitzLoading() {
+  dom['game-screen'].classList.remove('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['mystery-player'].classList.add('hidden');
+  dom['clue-list'].classList.add('hidden');
+  dom['photo-blitz-photo-wrap'].classList.remove('hidden');
+  resetPhotoBlitzPhotoDisplay();
+  dom['survival-start-btn'].classList.add('hidden');
+  dom['guess-form'].classList.add('hidden');
+  dom['action-row'].classList.add('hidden');
+  dom['score-label'].textContent = 'Time';
+  dom['score-value'].textContent = String(CONFIG.photoBlitzStartTime);
+  dom['puzzle-number'].textContent = 'Loading first photo…';
+  showFeedback('', '');
+}
+
+function resetPhotoBlitzPhotoDisplay() {
+  dom['photo-blitz-photo'].classList.remove('loaded');
+  dom['photo-blitz-photo'].removeAttribute('src');
+  dom['photo-blitz-placeholder'].textContent = '⚾';
+  dom['photo-blitz-placeholder'].classList.remove('hidden', 'initials');
+}
+
+function renderPhotoBlitzPhoto() {
+  resetPhotoBlitzPhotoDisplay();
+  const player = photoBlitzCurrentPlayer();
+  if (!player || !photoBlitzProgress.currentEntry) return;
+  const img = dom['photo-blitz-photo'];
+  const placeholder = dom['photo-blitz-placeholder'];
+  img.onload = () => {
+    img.classList.add('loaded');
+    placeholder.classList.add('hidden');
+  };
+  img.onerror = () => {
+    placeholder.textContent = initialsOf(player.name);
+    placeholder.classList.add('initials');
+  };
+  // alt is deliberately left blank — naming the player in alt text would
+  // hand screen-reader users the answer this mode asks them to guess.
+  img.alt = '';
+  img.src = photoBlitzProgress.currentEntry.url;
+}
+
+function renderPhotoBlitzGameScreen() {
+  dom['game-screen'].classList.remove('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['mystery-player'].classList.add('hidden');
+  dom['clue-list'].classList.add('hidden');
+  dom['photo-blitz-photo-wrap'].classList.remove('hidden');
+  dom['survival-start-btn'].classList.add('hidden');
+  dom['guess-form'].classList.remove('hidden');
+  dom['action-row'].classList.remove('hidden');
+  dom['pass-btn'].classList.add('hidden');
+  dom['score-label'].textContent = 'Time';
+  setGameControlsEnabled(true);
+  dom['puzzle-number'].textContent = `Named ${photoBlitzProgress.solved} · Best ${photoBlitzBest}`;
+  renderPhotoBlitzPhoto();
+  updatePhotoBlitzTimeDisplay();
+  dom['giveup-btn'].disabled = false;
+  dom['giveup-btn'].textContent = 'Skip';
 }
 
 function renderSurvivalGameScreen() {
@@ -615,6 +875,18 @@ function updateSurvivalTimeDisplay() {
 function updateTimedTimeDisplay() {
   const el = dom['score-value'];
   const val = String(timedProgress.timeLeft);
+  if (el.textContent !== val) {
+    el.textContent = val;
+    el.classList.remove('pulse');
+    // eslint-disable-next-line no-void
+    void el.offsetWidth;
+    el.classList.add('pulse');
+  }
+}
+
+function updatePhotoBlitzTimeDisplay() {
+  const el = dom['score-value'];
+  const val = String(photoBlitzProgress.timeLeft);
   if (el.textContent !== val) {
     el.textContent = val;
     el.classList.remove('pulse');
@@ -704,7 +976,7 @@ function handleTimedGuessSubmit() {
     setGameControlsEnabled(false);
     dom['pass-btn'].disabled = true;
     dom['clue-list'].innerHTML = '';
-    showSurvivalReveal(player, 'Correct! Next clock: 30s');
+    showSurvivalReveal(player, `Correct! Next clock: ${CONFIG.timedStartTime}s`);
 
     clearSurvivalReveal();
     survivalRevealTimer = setTimeout(() => {
@@ -788,6 +1060,65 @@ function handleTimedEndRun() {
   endTimedRun(true, 'Run ended');
 }
 
+// Shared by both a correct guess and a skip: pauses the clock, pops up the
+// just-shown player's name for confirmation, and — critically — starts
+// fetching/verifying the next photo in parallel with that popup instead of
+// after it, so load time hides inside a pause that was happening anyway and
+// never eats into the run's clock.
+function advancePhotoBlitz(player, detailText, tone) {
+  stopPhotoBlitzTimer();
+  setGameControlsEnabled(false);
+  photoBlitzProgress.currentEntry = null;
+  showSurvivalReveal(player, detailText, tone);
+  const nextEntryPromise = findNextPhotoBlitzEntry();
+
+  clearSurvivalReveal();
+  survivalRevealTimer = setTimeout(() => {
+    survivalRevealTimer = null;
+    nextEntryPromise.then((next) => {
+      if (gameMode !== 'photoblitz' || !photoBlitzProgress.running) return;
+      hideSurvivalReveal();
+      if (!next) {
+        endPhotoBlitzRun();
+        return;
+      }
+      photoBlitzProgress.currentEntry = next;
+      showFeedback('', '');
+      renderPhotoBlitzGameScreen();
+      startPhotoBlitzTimer();
+      dom['guess-input'].focus();
+    });
+  }, SURVIVAL_REVEAL_MS);
+}
+
+function handlePhotoBlitzGuessSubmit() {
+  if (!photoBlitzProgress.running || !photoBlitzProgress.currentEntry) return;
+  const raw = dom['guess-input'].value;
+  if (!raw.trim()) return;
+  const player = photoBlitzCurrentPlayer();
+  if (!player) return;
+
+  if (isCorrectGuess(raw, player, PLAYERS)) {
+    photoBlitzProgress.solved += 1;
+    dom['guess-input'].value = '';
+    showFeedback('', '');
+    dom['puzzle-number'].textContent = `Named ${photoBlitzProgress.solved} · Best ${photoBlitzBest}`;
+    advancePhotoBlitz(player, 'Correct!', 'correct');
+    return;
+  }
+
+  showFeedback('Not quite — try again or skip.', 'wrong');
+  dom['guess-input'].select();
+}
+
+function handlePhotoBlitzSkip() {
+  if (!photoBlitzProgress.running || !photoBlitzProgress.currentEntry) return;
+  const player = photoBlitzCurrentPlayer();
+  if (!player) return;
+  photoBlitzProgress.skipped.push({ id: player.id, name: player.name });
+  advancePhotoBlitz(player, 'Skipped', 'skip');
+}
+
 function renderSurvivalResult() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
@@ -810,6 +1141,7 @@ function renderSurvivalResult() {
   dom['player-photo-placeholder'].classList.remove('hidden', 'initials');
   dom['survival-again-btn'].textContent = 'Play Again';
   dom['survival-again-btn'].classList.remove('hidden');
+  dom['result-skipped'].classList.add('hidden');
   dom['next-puzzle-timer'].textContent = 'Survival mode has no daily limit.';
   if (countdownTimer) {
     clearInterval(countdownTimer);
@@ -830,7 +1162,7 @@ function renderTimedResult() {
   dom['result-summary'].innerHTML = `
     <div class="recap-stat"><span>This run</span><strong>${timedProgress.solved}</strong><em>Players correct</em></div>
     <div class="recap-stat"><span>Best run</span><strong>${timedBest}</strong><em>${isNewBest ? 'New best!' : 'Personal best'}</em></div>
-    <div class="recap-clue"><span>Rules</span><strong>30 seconds per player</strong><em>Each extra clue costs ${CONFIG.timedCluePenalty} seconds</em></div>
+    <div class="recap-clue"><span>Rules</span><strong>${CONFIG.timedStartTime} seconds per player</strong><em>Each extra clue costs ${CONFIG.timedCluePenalty} seconds</em></div>
   `;
   dom['result-clues'].innerHTML = '';
   dom['player-photo-wrap'].classList.remove('photo-win', 'photo-loss');
@@ -840,7 +1172,49 @@ function renderTimedResult() {
   dom['player-photo-placeholder'].classList.remove('hidden', 'initials');
   dom['survival-again-btn'].textContent = 'Play Again';
   dom['survival-again-btn'].classList.remove('hidden');
+  dom['result-skipped'].classList.add('hidden');
   dom['next-puzzle-timer'].textContent = 'Timed mode has no daily limit.';
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+}
+
+function renderPhotoBlitzResult() {
+  dom['game-screen'].classList.add('hidden');
+  dom['result-screen'].classList.remove('hidden');
+  dom['puzzle-number'].textContent = `Photo Blitz Best: ${photoBlitzBest} named`;
+
+  const isNewBest = photoBlitzProgress.solved > 0 && photoBlitzProgress.solved >= photoBlitzBest;
+  dom['result-title'].textContent = "Time's up!";
+  dom['result-player'].textContent = `You named ${photoBlitzProgress.solved} player${photoBlitzProgress.solved === 1 ? '' : 's'} in Photo Blitz.`;
+  dom['result-score'].textContent = `${photoBlitzProgress.solved} named`;
+  dom['result-grid'].textContent = photoBlitzProgress.solved > 0 ? '⚾'.repeat(Math.min(10, photoBlitzProgress.solved)) : '❌';
+  dom['result-summary'].innerHTML = `
+    <div class="recap-stat"><span>This run</span><strong>${photoBlitzProgress.solved}</strong><em>Players named</em></div>
+    <div class="recap-stat"><span>Best run</span><strong>${photoBlitzBest}</strong><em>${isNewBest ? 'New best!' : 'Personal best'}</em></div>
+  `;
+  dom['result-clues'].innerHTML = '';
+  dom['player-photo-wrap'].classList.remove('photo-win', 'photo-loss');
+  dom['player-photo'].classList.remove('loaded');
+  dom['player-photo'].removeAttribute('src');
+  dom['player-photo-placeholder'].textContent = '📸';
+  dom['player-photo-placeholder'].classList.remove('hidden', 'initials');
+
+  if (photoBlitzProgress.skipped.length) {
+    dom['result-skipped'].classList.remove('hidden');
+    dom['result-skipped'].innerHTML = `
+      <h3>Players You Skipped</h3>
+      <ul class="skipped-list">${photoBlitzProgress.skipped.map(s => `<li>${s.name}</li>`).join('')}</ul>
+    `;
+  } else {
+    dom['result-skipped'].classList.add('hidden');
+    dom['result-skipped'].innerHTML = '';
+  }
+
+  dom['survival-again-btn'].textContent = 'Play Again';
+  dom['survival-again-btn'].classList.remove('hidden');
+  dom['next-puzzle-timer'].textContent = 'Photo Blitz has no daily limit.';
   if (countdownTimer) {
     clearInterval(countdownTimer);
     countdownTimer = null;
@@ -857,15 +1231,17 @@ function renderHome() {
   dom['home-daily-meta'].textContent = `Puzzle #${today.puzzleNumber}${progress.finished ? ' · Completed' : ''}`;
   dom['home-survival-meta'].textContent = `Best: ${survivalBest} solved`;
   dom['home-timed-meta'].textContent = `Best: ${timedBest} correct`;
+  dom['home-photoblitz-meta'].textContent = `Best: ${photoBlitzBest} named`;
 }
 
 function setMode(mode) {
   if (mode === gameMode) return;
   gameMode = mode;
   clearSurvivalReveal();
-  hideSurvivalReveal(); // in case a survival reveal was mid-flight when the mode changed
+  hideSurvivalReveal(); // in case a reveal was mid-flight when the mode changed
   stopSurvivalTimer(); // always pause survival's clock when leaving its screen; restarted below if entering it running
   stopTimedTimer(); // same idea for timed mode
+  stopPhotoBlitzTimer(); // same idea for photo blitz
 
   if (mode === 'home') {
     renderHome();
@@ -876,6 +1252,12 @@ function setMode(mode) {
   dom['puzzle-number'].classList.remove('hidden');
   dom['game-intro'].classList.remove('hidden');
   dom['mode-menu-btn'].classList.remove('hidden');
+  // Photo Blitz hides these and shows its own photo instead; every other
+  // mode needs the defaults visible again and the big photo hidden.
+  dom['mystery-player'].classList.remove('hidden');
+  dom['clue-list'].classList.remove('hidden');
+  dom['pass-btn'].classList.remove('hidden');
+  dom['photo-blitz-photo-wrap'].classList.add('hidden');
 
   if (mode === 'survival') {
     dom['intro-title'].textContent = 'Survive the mystery-player gauntlet.';
@@ -889,8 +1271,8 @@ function setMode(mode) {
       renderSurvivalLanding();
     }
   } else if (mode === 'timed') {
-    dom['intro-title'].textContent = 'Beat the 30-second clock.';
-    dom['intro-copy'].textContent = 'Each player starts with 30 seconds and 3 clues. Revealing a clue costs 5 seconds. Correct answers reset the clock.';
+    dom['intro-title'].textContent = `Beat the ${CONFIG.timedStartTime}-second clock.`;
+    dom['intro-copy'].textContent = `Each player starts with ${CONFIG.timedStartTime} seconds and ${CONFIG.timedMaxClues} clues. Revealing a clue costs ${CONFIG.timedCluePenalty} seconds. Correct answers reset the clock.`;
     if (timedProgress.running) {
       startTimedTimer();
       renderTimedGameScreen();
@@ -898,6 +1280,17 @@ function setMode(mode) {
       renderTimedResult();
     } else {
       renderTimedLanding();
+    }
+  } else if (mode === 'photoblitz') {
+    dom['intro-title'].textContent = 'Name the player from their photo.';
+    dom['intro-copy'].textContent = `You have ${CONFIG.photoBlitzStartTime} seconds and unlimited free skips. No clues — photo only.`;
+    if (photoBlitzProgress.running) {
+      startPhotoBlitzTimer();
+      renderPhotoBlitzGameScreen();
+    } else if (photoBlitzProgress.finished) {
+      renderPhotoBlitzResult();
+    } else {
+      renderPhotoBlitzLanding();
     }
   } else {
     dom['intro-title'].textContent = "Guess today's mystery MLB player.";
@@ -1216,10 +1609,85 @@ async function buildTimedShareImageFile() {
   return new File([blob], `dinger-timed-${timedProgress.solved}.png`, { type: 'image/png' });
 }
 
+async function buildPhotoBlitzShareImageFile() {
+  const size = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const link = gameShareUrl();
+  const isNewBest = photoBlitzProgress.solved > 0 && photoBlitzProgress.solved >= photoBlitzBest;
+  const bestText = isNewBest ? 'New personal best!' : `Best run: ${photoBlitzBest} named`;
+
+  const bg = ctx.createLinearGradient(0, 0, size, size);
+  bg.addColorStop(0, '#041226');
+  bg.addColorStop(0.55, '#0b2447');
+  bg.addColorStop(1, '#12386a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
+  ctx.beginPath();
+  ctx.moveTo(0, 790);
+  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
+  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
+  ctx.lineTo(1080, 1080);
+  ctx.lineTo(0, 1080);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(0, 825);
+  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
+  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
+  for (let i = 0; i < 12; i += 1) {
+    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
+  }
+
+  roundRect(ctx, 90, 110, 900, 760, 36);
+  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
+  ctx.fill();
+  ctx.strokeStyle = '#2a5f9e';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
+  ctx.fillStyle = '#bf0d3e';
+  ctx.font = '800 30px Arial, sans-serif';
+  ctx.fillText('PHOTO BLITZ', 540, 292);
+
+  ctx.fillStyle = '#f5f8ff';
+  ctx.font = '900 150px Arial, sans-serif';
+  ctx.fillText(`${photoBlitzProgress.solved}`, 540, 460);
+  ctx.fillStyle = '#a9bdd8';
+  ctx.font = '800 34px Arial, sans-serif';
+  ctx.fillText('PLAYERS NAMED', 540, 550);
+
+  ctx.fillStyle = isNewBest ? '#f5f8ff' : '#e83a59';
+  ctx.font = '800 40px Arial, sans-serif';
+  ctx.fillText(bestText, 540, 636);
+
+  ctx.fillStyle = '#d8e8ff';
+  ctx.font = '700 30px Arial, sans-serif';
+  ctx.fillText('Play at', 540, 790);
+  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
+
+  const blob = await canvasToBlob(canvas);
+  return new File([blob], `dinger-photo-blitz-${photoBlitzProgress.solved}.png`, { type: 'image/png' });
+}
+
 function renderResultScreen() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
   dom['survival-again-btn'].classList.add('hidden');
+  dom['result-skipped'].classList.add('hidden');
 
   dom['result-title'].textContent = progress.solved ? 'Nice work! ⚾' : 'Out of clues';
   dom['result-player'].textContent = `The answer was ${today.player.name} (${today.player.era})`;
@@ -1283,6 +1751,10 @@ function handleGuessSubmit(e) {
     handleTimedGuessSubmit();
     return;
   }
+  if (gameMode === 'photoblitz') {
+    handlePhotoBlitzGuessSubmit();
+    return;
+  }
   if (progress.finished) return;
   const raw = dom['guess-input'].value;
   if (!raw.trim()) return;
@@ -1309,6 +1781,7 @@ function handlePass() {
     handleTimedPass();
     return;
   }
+  if (gameMode === 'photoblitz') return; // no clues to reveal in this mode
   if (progress.finished) return;
   const max = maxCluesFor(today.player);
   if (progress.clueIndex >= max) return;
@@ -1329,6 +1802,10 @@ function handleGiveUp() {
     handleTimedEndRun();
     return;
   }
+  if (gameMode === 'photoblitz') {
+    handlePhotoBlitzSkip();
+    return;
+  }
   if (progress.finished) return;
   finalize(false);
 }
@@ -1339,6 +1816,10 @@ function buildSurvivalShareText() {
 
 function buildTimedShareText() {
   return `⚾ Dinger Timed — ${timedProgress.solved} correct (best: ${timedBest})`;
+}
+
+function buildPhotoBlitzShareText() {
+  return `⚾ Dinger Photo Blitz — ${photoBlitzProgress.solved} named (best: ${photoBlitzBest})`;
 }
 
 async function handleSurvivalShare() {
@@ -1471,6 +1952,71 @@ async function handleTimedShare() {
   resetShareButtonSoon();
 }
 
+async function handlePhotoBlitzShare() {
+  const text = buildPhotoBlitzShareText();
+  const url = gameShareUrl();
+  let imageFile = null;
+  dom['share-btn'].disabled = true;
+  dom['share-btn'].textContent = 'Preparing...';
+
+  try {
+    imageFile = await buildPhotoBlitzShareImageFile();
+  } catch {
+    imageFile = null;
+  }
+
+  dom['share-btn'].disabled = false;
+
+  const shareData = {
+    title: 'Dinger Photo Blitz',
+    text: `${text}\n${url}`,
+    url,
+  };
+  const imageShareData = imageFile
+    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
+    : null;
+
+  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
+    try {
+      await navigator.share(imageShareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
+      }
+    }
+    return;
+  }
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+    try {
+      await navigator.share(shareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
+      }
+    }
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
+  } catch {
+    dom['share-btn'].textContent = `${text} ${url}`;
+  }
+  resetShareButtonSoon();
+}
+
 async function handleShare() {
   if (gameMode === 'survival') {
     await handleSurvivalShare();
@@ -1478,6 +2024,10 @@ async function handleShare() {
   }
   if (gameMode === 'timed') {
     await handleTimedShare();
+    return;
+  }
+  if (gameMode === 'photoblitz') {
+    await handlePhotoBlitzShare();
     return;
   }
   const text = buildShareText();
@@ -1653,6 +2203,8 @@ function showFirstRunHelp() {
 function handleModeStart() {
   if (gameMode === 'timed') {
     startTimedRun();
+  } else if (gameMode === 'photoblitz') {
+    startPhotoBlitzRun();
   } else {
     startSurvivalRun();
   }
@@ -1669,6 +2221,7 @@ function attachEvents() {
   dom['home-daily-btn'].addEventListener('click', () => setMode('daily'));
   dom['home-survival-btn'].addEventListener('click', () => setMode('survival'));
   dom['home-timed-btn'].addEventListener('click', () => setMode('timed'));
+  dom['home-photoblitz-btn'].addEventListener('click', () => setMode('photoblitz'));
   dom['mode-menu-btn'].addEventListener('click', () => setMode('home'));
 
   dom['stats-btn'].addEventListener('click', () => { renderStats(); toggleModal(dom['stats-modal'], true, dom['stats-btn']); });
@@ -1694,6 +2247,7 @@ function init() {
   progress = loadProgress(currentDateStr) || defaultProgress();
   survivalBest = loadSurvivalBest();
   timedBest = loadTimedBest();
+  photoBlitzBest = loadPhotoBlitzBest();
 
   attachEvents();
   setMode('home');

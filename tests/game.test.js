@@ -186,9 +186,9 @@ describe('getPuzzleForDate', () => {
 });
 
 describe('getCluesForPlayer', () => {
-  test('every player has exactly 7 hand-authored clues', () => {
+  test('every player has exactly CONFIG.maxClues hand-authored clues', () => {
     for (const player of PLAYERS) {
-      assert.equal(player.clues.length, 7, `player "${player.id}" has ${player.clues.length} authored clues`);
+      assert.equal(player.clues.length, CONFIG.maxClues, `player "${player.id}" has ${player.clues.length} authored clues`);
     }
   });
 
