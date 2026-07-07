@@ -85,20 +85,69 @@ function cacheDom() {
   ].forEach(id => { dom[id] = document.getElementById(id); });
 }
 
-const photoCache = {};
+const PHOTO_CACHE_KEY = 'dinger_photo_cache_v1';
+
+function loadPhotoCache() {
+  try {
+    const raw = localStorage.getItem(PHOTO_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistPhotoCache() {
+  try {
+    localStorage.setItem(PHOTO_CACHE_KEY, JSON.stringify(photoCache));
+  } catch {
+    // Storage full or unavailable — cache just stays in-memory for this session.
+  }
+}
+
+const photoCache = loadPhotoCache();
+
+async function fetchWikipediaSummary(title) {
+  const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/\s+/g, '_'))}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+function looksLikeBaseballBio(summary) {
+  if (!summary || summary.type === 'disambiguation') return false;
+  const text = `${summary.description || ''} ${summary.extract || ''}`.toLowerCase();
+  return text.includes('baseball');
+}
+
+// Common names (e.g. "Frank Thomas") collide with unrelated Wikipedia
+// articles, so if the direct lookup isn't a baseball bio, retry against a
+// search scoped to "<name> baseball" before giving up.
+async function findBaseballWikipediaTitle(name) {
+  const query = encodeURIComponent(`${name} baseball`);
+  const res = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=1&srsearch=${query}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const hit = data && data.query && data.query.search && data.query.search[0];
+  return hit ? hit.title : null;
+}
 
 async function fetchPlayerPhoto(name) {
   if (Object.prototype.hasOwnProperty.call(photoCache, name)) return photoCache[name];
-  const title = encodeURIComponent(name.replace(/\s+/g, '_'));
   try {
-    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`);
-    if (!res.ok) throw new Error('not ok');
-    const data = await res.json();
-    const url = (data.thumbnail && data.thumbnail.source) || (data.originalimage && data.originalimage.source) || null;
+    let summary = await fetchWikipediaSummary(name);
+    if (!looksLikeBaseballBio(summary)) {
+      const betterTitle = await findBaseballWikipediaTitle(name);
+      if (betterTitle) {
+        const betterSummary = await fetchWikipediaSummary(betterTitle);
+        if (looksLikeBaseballBio(betterSummary)) summary = betterSummary;
+      }
+    }
+    const url = (summary && ((summary.thumbnail && summary.thumbnail.source) || (summary.originalimage && summary.originalimage.source))) || null;
     photoCache[name] = url;
+    persistPhotoCache();
     return url;
   } catch {
     photoCache[name] = null;
+    persistPhotoCache();
     return null;
   }
 }
@@ -144,7 +193,7 @@ async function loadPlayerPhoto(player, solved) {
 }
 
 function maxCluesFor(player) {
-  return Math.min(CONFIG.maxClues, player.clues.length);
+  return Math.min(CONFIG.maxClues, getCluesForPlayer(player).length);
 }
 
 function renderPuzzleMeta() {
@@ -152,12 +201,13 @@ function renderPuzzleMeta() {
 }
 
 function renderClueList() {
+  const clues = getCluesForPlayer(today.player);
   dom['clue-list'].innerHTML = '';
   for (let i = 0; i < progress.clueIndex; i += 1) {
     const li = document.createElement('li');
     li.className = 'clue-item';
     if (i === progress.clueIndex - 1 && !progress.finished) li.classList.add('clue-new');
-    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${today.player.clues[i]}</span>`;
+    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${clues[i]}</span>`;
     dom['clue-list'].appendChild(li);
   }
 }
@@ -374,8 +424,9 @@ function renderResultScreen() {
   squares += progress.solved ? '✅' : '❌';
   dom['result-grid'].textContent = squares;
   const clueCount = maxCluesFor(today.player);
-  const finalClue = today.player.clues[progress.clueIndex - 1];
-  const firstClue = today.player.clues[0];
+  const clues = getCluesForPlayer(today.player);
+  const finalClue = clues[progress.clueIndex - 1];
+  const firstClue = clues[0];
   const outcome = progress.solved
     ? `Solved in ${progress.clueIndex} of ${clueCount} clues`
     : `Revealed ${progress.clueIndex} of ${clueCount} clues`;
@@ -386,7 +437,7 @@ function renderResultScreen() {
   `;
 
   dom['result-clues'].innerHTML = '';
-  today.player.clues.slice(0, progress.clueIndex).forEach((word, i) => {
+  clues.slice(0, progress.clueIndex).forEach((word, i) => {
     const li = document.createElement('li');
     li.className = 'clue-item';
     li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${word}</span>`;
@@ -572,8 +623,45 @@ function renderStats() {
   `;
 }
 
-function toggleModal(modal, show) {
+let lastFocusedEl = null;
+
+function getFocusableEls(container) {
+  return Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter(el => !el.disabled && el.offsetParent !== null);
+}
+
+function trapFocusKeydown(e, modal) {
+  if (e.key !== 'Tab') return;
+  const focusable = getFocusableEls(modal);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+function toggleModal(modal, show, triggerEl) {
+  const wasOpen = !modal.classList.contains('hidden');
   modal.classList.toggle('hidden', !show);
+
+  if (show && !wasOpen) {
+    lastFocusedEl = triggerEl || document.activeElement;
+    const focusable = getFocusableEls(modal);
+    if (focusable.length) focusable[0].focus();
+    modal._trapHandler = (e) => trapFocusKeydown(e, modal);
+    modal.addEventListener('keydown', modal._trapHandler);
+  } else if (!show && wasOpen) {
+    if (modal._trapHandler) {
+      modal.removeEventListener('keydown', modal._trapHandler);
+      modal._trapHandler = null;
+    }
+    if (lastFocusedEl) lastFocusedEl.focus();
+  }
 }
 
 function showFirstRunHelp() {
@@ -592,11 +680,11 @@ function attachEvents() {
   dom['giveup-btn'].addEventListener('click', handleGiveUp);
   dom['share-btn'].addEventListener('click', handleShare);
 
-  dom['stats-btn'].addEventListener('click', () => { renderStats(); toggleModal(dom['stats-modal'], true); });
+  dom['stats-btn'].addEventListener('click', () => { renderStats(); toggleModal(dom['stats-modal'], true, dom['stats-btn']); });
   dom['close-stats'].addEventListener('click', () => toggleModal(dom['stats-modal'], false));
   dom['close-stats-2'].addEventListener('click', () => toggleModal(dom['stats-modal'], false));
 
-  dom['help-btn'].addEventListener('click', () => toggleModal(dom['help-modal'], true));
+  dom['help-btn'].addEventListener('click', () => toggleModal(dom['help-modal'], true, dom['help-btn']));
   dom['close-help'].addEventListener('click', () => toggleModal(dom['help-modal'], false));
   dom['close-help-2'].addEventListener('click', () => toggleModal(dom['help-modal'], false));
 

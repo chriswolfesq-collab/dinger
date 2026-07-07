@@ -385,6 +385,7 @@ h1 .ball {
 }
 
 .feedback-wrong { color: var(--red); animation: fade-in 0.2s ease; }
+.feedback-right { color: var(--accent-soft); animation: fade-in 0.2s ease; }
 
 @keyframes fade-in {
   from { opacity: 0; } to { opacity: 1; }

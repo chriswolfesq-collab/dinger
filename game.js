@@ -30,6 +30,56 @@ function getPuzzleForDate(dateStr) {
   return { puzzleNumber, dayNum, player };
 }
 
+function parseEraRange(era) {
+  const match = String(era).match(/^(\d{4})[–-](\d{4}|present)$/);
+  if (!match) return null;
+  return {
+    start: Number(match[1]),
+    end: match[2] === 'present' ? 'present' : Number(match[2]),
+  };
+}
+
+function decadeLabel(year) {
+  return `${Math.floor(year / 10) * 10}s`;
+}
+
+function eraWindowLabel(range) {
+  const startDecade = decadeLabel(range.start);
+  const endDecade = range.end === 'present' ? 'today' : decadeLabel(range.end);
+  return startDecade === endDecade ? startDecade : `${startDecade} to ${endDecade}`;
+}
+
+// player.clues holds exactly 7 hand-ordered facts, vaguest to most
+// identifying: [0-2] broad enough to fit many players, [3-5] moderate
+// reveals (team/role/nickname), [6] the single most identifying fact. This
+// interleaves them with 3 auto-generated era clues to build a 10-clue ladder
+// that escalates in specificity from start to finish.
+function getCluesForPlayer(player) {
+  const eraRange = parseEraRange(player.era);
+  if (!eraRange) return player.clues.slice(0, CONFIG.maxClues);
+
+  const decadeClue = `Career window sits in the ${eraWindowLabel(eraRange)} range`;
+  const startYearClue = `Career began in ${eraRange.start}`;
+  const endYearClue = eraRange.end === 'present'
+    ? 'Career is still marked active in this puzzle set'
+    : `Career ended in ${eraRange.end}`;
+
+  const [vague1, vague2, vague3, mid1, mid2, mid3, finalClue] = player.clues;
+
+  return [
+    decadeClue,
+    vague1,
+    vague2,
+    vague3,
+    startYearClue,
+    mid1,
+    mid2,
+    mid3,
+    endYearClue,
+    finalClue,
+  ].slice(0, CONFIG.maxClues);
+}
+
 function normalize(str) {
   return str
     .toLowerCase()

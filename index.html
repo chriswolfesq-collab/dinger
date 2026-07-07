@@ -4,10 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dinger — Daily MLB Player Guessing Game</title>
+<meta name="description" content="Dinger is a daily baseball guessing game. Use a ladder of clues to name the mystery MLB player before you run out of guesses.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Dinger — Daily MLB Player Guessing Game">
+<meta property="og:description" content="Guess today's mystery MLB player from a ladder of clues. A new puzzle every day.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Dinger — Daily MLB Player Guessing Game">
+<meta name="twitter:description" content="Guess today's mystery MLB player from a ladder of clues. A new puzzle every day.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BE%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 <div class="app">
@@ -23,7 +30,7 @@
 
   <section class="game-intro" aria-label="Game summary">
     <h2>Guess today's mystery MLB player.</h2>
-    <p>Use the clues to name the player. Start with 100 points, reveal more clues if you need them, and try to solve before your score runs out.</p>
+    <p>Use the clues to name the player. The opener is intentionally tough, so a 100-point solve should feel rare.</p>
   </section>
 
   <main id="game-screen">
@@ -48,7 +55,7 @@
       <input id="guess-input" type="text" placeholder="Who's the player?" autocomplete="off" />
       <button type="submit">Guess</button>
     </form>
-    <div id="feedback" class="feedback"></div>
+    <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
     <div class="action-row">
       <button id="pass-btn" class="secondary-btn">Reveal next clue (−10)</button>
@@ -75,19 +82,19 @@
     <p id="next-puzzle-timer" class="next-puzzle-timer"></p>
   </section>
 
-  <section id="stats-modal" class="modal hidden">
+  <section id="stats-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="stats-modal-title">
     <div class="modal-content">
-      <button class="close-btn" id="close-stats">×</button>
-      <h2>Your Stats</h2>
+      <button class="close-btn" id="close-stats" aria-label="Close">×</button>
+      <h2 id="stats-modal-title">Your Stats</h2>
       <div id="stats-grid" class="stats-grid"></div>
       <button id="close-stats-2" class="primary-btn">Close</button>
     </div>
   </section>
 
-  <section id="help-modal" class="modal hidden">
+  <section id="help-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
     <div class="modal-content">
-      <button class="close-btn" id="close-help">×</button>
-      <h2>How to Play</h2>
+      <button class="close-btn" id="close-help" aria-label="Close">×</button>
+      <h2 id="help-modal-title">How to Play</h2>
       <p class="help-summary">Dinger is a daily baseball guessing game. Your goal is to identify one mystery MLB player from a ladder of clues.</p>
       <div class="help-section">
         <h3>Your Goal</h3>
@@ -95,7 +102,7 @@
       </div>
       <div class="help-section">
         <h3>Clues</h3>
-        <p>You start with one clue. There are ten total clues, moving from broad hints to more revealing facts like teams, nicknames, records, jersey numbers, or signature moments.</p>
+        <p>You start with one clue. There are ten total clues, moving from obscure career-window hints to more revealing facts like teams, nicknames, records, jersey numbers, or signature moments.</p>
       </div>
       <div class="help-section">
         <h3>Scoring</h3>
@@ -114,8 +121,8 @@
     </div>
   </section>
 </div>
-<script src="players.js?v=12" defer></script>
-<script src="game.js?v=12" defer></script>
-<script src="app.js?v=12" defer></script>
+<script src="players.js?v=18" defer></script>
+<script src="game.js?v=18" defer></script>
+<script src="app.js?v=18" defer></script>
 </body>
 </html>
