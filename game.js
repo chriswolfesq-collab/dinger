@@ -56,35 +56,11 @@ function eraWindowLabel(range) {
   return startDecade === endDecade ? startDecade : `${startDecade} to ${endDecade}`;
 }
 
-// player.clues holds exactly 7 hand-ordered facts, vaguest to most
-// identifying: [0-2] broad enough to fit many players, [3-5] moderate
-// reveals (team/role/nickname), [6] the single most identifying fact. This
-// interleaves them with 3 auto-generated era clues to build a 10-clue ladder
-// that escalates in specificity from start to finish.
+// player.clues holds the full 10-clue daily ladder, ordered from vaguest to
+// most identifying. Player-specific clue writing lives in players.js so Daily,
+// Survival, and Timed can use the same roster without hidden filler clues.
 function getCluesForPlayer(player) {
-  const eraRange = parseEraRange(player.era);
-  if (!eraRange) return player.clues.slice(0, CONFIG.maxClues);
-
-  const decadeClue = `Career window sits in the ${eraWindowLabel(eraRange)} range`;
-  const startYearClue = `Career began in ${eraRange.start}`;
-  const endYearClue = eraRange.end === 'present'
-    ? 'Career is still marked active in this puzzle set'
-    : `Career ended in ${eraRange.end}`;
-
-  const [vague1, vague2, vague3, mid1, mid2, mid3, finalClue] = player.clues;
-
-  return [
-    decadeClue,
-    vague1,
-    vague2,
-    vague3,
-    startYearClue,
-    mid1,
-    mid2,
-    mid3,
-    endYearClue,
-    finalClue,
-  ].slice(0, CONFIG.maxClues);
+  return player.clues.slice(0, CONFIG.maxClues);
 }
 
 // Survival is a fast arcade mode, so clues should be easy and — since only

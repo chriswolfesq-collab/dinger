@@ -486,7 +486,7 @@ function endSurvivalRun(showFinalReveal = true) {
   renderSurvivalResult();
 }
 
-function endTimedRun(showFinalReveal = true) {
+function endTimedRun(showFinalReveal = true, revealText = "Time's up") {
   clearSurvivalReveal();
   stopTimedTimer();
   const finalPlayer = timedCurrentPlayer();
@@ -500,7 +500,7 @@ function endTimedRun(showFinalReveal = true) {
     setGameControlsEnabled(false);
     dom['pass-btn'].disabled = true;
     dom['clue-list'].innerHTML = '';
-    showSurvivalReveal(finalPlayer, "Time's up", 'skip');
+    showSurvivalReveal(finalPlayer, revealText, 'skip');
     survivalRevealTimer = setTimeout(() => {
       survivalRevealTimer = null;
       hideSurvivalReveal();
@@ -785,7 +785,7 @@ function handleSurvivalSkip() {
 
 function handleTimedEndRun() {
   if (!timedProgress.running) return;
-  endTimedRun(false);
+  endTimedRun(true, 'Run ended');
 }
 
 function renderSurvivalResult() {
