@@ -69,6 +69,7 @@ function defaultProgress() {
 }
 
 const SURVIVAL_BEST_KEY = 'dinger_survival_best_v1';
+const TIMED_BEST_KEY = 'dinger_timed_best_v1';
 
 function loadSurvivalBest() {
   try {
@@ -87,8 +88,29 @@ function saveSurvivalBest(best) {
   }
 }
 
+function loadTimedBest() {
+  try {
+    const val = Number(localStorage.getItem(TIMED_BEST_KEY));
+    return Number.isFinite(val) && val > 0 ? val : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveTimedBest(best) {
+  try {
+    localStorage.setItem(TIMED_BEST_KEY, String(best));
+  } catch {
+    // Best score stays in memory only if storage is unavailable.
+  }
+}
+
 function defaultSurvivalProgress() {
   return { queue: [], currentPlayerId: null, clueIndex: 1, solved: 0, timeLeft: CONFIG.survivalStartTime, running: false, finished: false };
+}
+
+function defaultTimedProgress() {
+  return { queue: [], currentPlayerId: null, clueIndex: 1, solved: 0, timeLeft: CONFIG.timedStartTime, running: false, finished: false };
 }
 
 const dom = {};
@@ -98,8 +120,11 @@ let progress = null;
 let countdownTimer = null;
 let gameMode = null;
 let survivalProgress = defaultSurvivalProgress();
+let timedProgress = defaultTimedProgress();
 let survivalTimer = null;
+let timedTimer = null;
 let survivalBest = 0;
+let timedBest = 0;
 let survivalRevealTimer = null;
 
 const SURVIVAL_REVEAL_MS = 1400; // how long the solved player's photo stays up, paused off the clock
@@ -114,7 +139,7 @@ function cacheDom() {
     'player-photo-wrap', 'player-photo', 'player-photo-placeholder',
     'survival-start-btn', 'survival-again-btn', 'intro-title', 'intro-copy', 'action-row', 'game-intro',
     'survival-reveal-overlay', 'survival-reveal-photo', 'survival-reveal-placeholder', 'survival-reveal-name', 'survival-reveal-bonus',
-    'home-btn', 'home-screen', 'home-daily-btn', 'home-survival-btn', 'home-daily-meta', 'home-survival-meta',
+    'home-btn', 'home-screen', 'home-daily-btn', 'home-survival-btn', 'home-timed-btn', 'home-daily-meta', 'home-survival-meta', 'home-timed-meta',
   ].forEach(id => { dom[id] = document.getElementById(id); });
 }
 
@@ -297,6 +322,10 @@ function survivalCurrentPlayer() {
   return PLAYERS.find(p => p.id === survivalProgress.currentPlayerId) || null;
 }
 
+function timedCurrentPlayer() {
+  return PLAYERS.find(p => p.id === timedProgress.currentPlayerId) || null;
+}
+
 function loadNextSurvivalPlayer() {
   if (!survivalProgress.queue.length) {
     survivalProgress.queue = buildSurvivalQueue();
@@ -307,10 +336,28 @@ function loadNextSurvivalPlayer() {
   survivalProgress.clueIndex = 1;
 }
 
+function loadNextTimedPlayer() {
+  if (!timedProgress.queue.length) {
+    timedProgress.queue = buildSurvivalQueue();
+  }
+  const [nextId, ...rest] = timedProgress.queue;
+  timedProgress.queue = rest;
+  timedProgress.currentPlayerId = nextId;
+  timedProgress.clueIndex = 1;
+  timedProgress.timeLeft = CONFIG.timedStartTime;
+}
+
 function stopSurvivalTimer() {
   if (survivalTimer) {
     clearInterval(survivalTimer);
     survivalTimer = null;
+  }
+}
+
+function stopTimedTimer() {
+  if (timedTimer) {
+    clearInterval(timedTimer);
+    timedTimer = null;
   }
 }
 
@@ -320,6 +367,15 @@ function startSurvivalTimer() {
     survivalProgress.timeLeft = clampSurvivalTime(survivalProgress.timeLeft - 1);
     updateSurvivalTimeDisplay();
     if (survivalProgress.timeLeft <= 0) endSurvivalRun();
+  }, 1000);
+}
+
+function startTimedTimer() {
+  stopTimedTimer();
+  timedTimer = setInterval(() => {
+    timedProgress.timeLeft = clampSurvivalTime(timedProgress.timeLeft - 1);
+    updateTimedTimeDisplay();
+    if (timedProgress.timeLeft <= 0) endTimedRun();
   }, 1000);
 }
 
@@ -390,6 +446,20 @@ function startSurvivalRun() {
   dom['guess-input'].focus();
 }
 
+function startTimedRun() {
+  clearSurvivalReveal();
+  hideSurvivalReveal();
+  timedProgress = defaultTimedProgress();
+  timedProgress.queue = buildSurvivalQueue();
+  timedProgress.running = true;
+  loadNextTimedPlayer();
+  showFeedback('', '');
+  dom['guess-input'].value = '';
+  renderTimedGameScreen();
+  startTimedTimer();
+  dom['guess-input'].focus();
+}
+
 function endSurvivalRun() {
   clearSurvivalReveal();
   hideSurvivalReveal();
@@ -403,6 +473,19 @@ function endSurvivalRun() {
   renderSurvivalResult();
 }
 
+function endTimedRun() {
+  clearSurvivalReveal();
+  hideSurvivalReveal();
+  stopTimedTimer();
+  timedProgress.running = false;
+  timedProgress.finished = true;
+  if (timedProgress.solved > timedBest) {
+    timedBest = timedProgress.solved;
+    saveTimedBest(timedBest);
+  }
+  renderTimedResult();
+}
+
 function renderSurvivalLanding() {
   dom['game-screen'].classList.remove('hidden');
   dom['result-screen'].classList.add('hidden');
@@ -411,6 +494,21 @@ function renderSurvivalLanding() {
   dom['puzzle-number'].textContent = `Survival Best: ${survivalBest} solved`;
   dom['clue-list'].innerHTML = '';
   dom['survival-start-btn'].classList.remove('hidden');
+  dom['survival-start-btn'].textContent = 'Start Survival Run';
+  dom['guess-form'].classList.add('hidden');
+  dom['action-row'].classList.add('hidden');
+  showFeedback('', '');
+}
+
+function renderTimedLanding() {
+  dom['game-screen'].classList.remove('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['score-label'].textContent = 'Time';
+  dom['score-value'].textContent = String(CONFIG.timedStartTime);
+  dom['puzzle-number'].textContent = `Timed Best: ${timedBest} correct`;
+  dom['clue-list'].innerHTML = '';
+  dom['survival-start-btn'].classList.remove('hidden');
+  dom['survival-start-btn'].textContent = 'Start Timed Run';
   dom['guess-form'].classList.add('hidden');
   dom['action-row'].classList.add('hidden');
   showFeedback('', '');
@@ -432,6 +530,22 @@ function renderSurvivalGameScreen() {
   dom['giveup-btn'].textContent = `Skip (−${CONFIG.survivalSkipPenalty}s)`;
 }
 
+function renderTimedGameScreen() {
+  dom['game-screen'].classList.remove('hidden');
+  dom['result-screen'].classList.add('hidden');
+  dom['survival-start-btn'].classList.add('hidden');
+  dom['guess-form'].classList.remove('hidden');
+  dom['action-row'].classList.remove('hidden');
+  dom['score-label'].textContent = 'Time';
+  setGameControlsEnabled(true);
+  dom['puzzle-number'].textContent = `Correct ${timedProgress.solved} · Best ${timedBest}`;
+  renderTimedClueList();
+  updateTimedTimeDisplay();
+  updateTimedPassButton();
+  dom['giveup-btn'].disabled = false;
+  dom['giveup-btn'].textContent = 'End run';
+}
+
 function renderSurvivalClueList() {
   const player = survivalCurrentPlayer();
   if (!player) return;
@@ -441,6 +555,20 @@ function renderSurvivalClueList() {
     const li = document.createElement('li');
     li.className = 'clue-item';
     if (i === survivalProgress.clueIndex - 1) li.classList.add('clue-new');
+    li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${clues[i]}</span>`;
+    dom['clue-list'].appendChild(li);
+  }
+}
+
+function renderTimedClueList() {
+  const player = timedCurrentPlayer();
+  if (!player) return;
+  const clues = getTimedCluesForPlayer(player);
+  dom['clue-list'].innerHTML = '';
+  for (let i = 0; i < timedProgress.clueIndex; i += 1) {
+    const li = document.createElement('li');
+    li.className = 'clue-item';
+    if (i === timedProgress.clueIndex - 1) li.classList.add('clue-new');
     li.innerHTML = `<span class="clue-num">${i + 1}</span><span class="clue-word">${clues[i]}</span>`;
     dom['clue-list'].appendChild(li);
   }
@@ -458,6 +586,18 @@ function updateSurvivalTimeDisplay() {
   }
 }
 
+function updateTimedTimeDisplay() {
+  const el = dom['score-value'];
+  const val = String(timedProgress.timeLeft);
+  if (el.textContent !== val) {
+    el.textContent = val;
+    el.classList.remove('pulse');
+    // eslint-disable-next-line no-void
+    void el.offsetWidth;
+    el.classList.add('pulse');
+  }
+}
+
 function updateSurvivalPassButton() {
   if (survivalProgress.clueIndex >= CONFIG.survivalMaxClues) {
     dom['pass-btn'].disabled = true;
@@ -465,6 +605,16 @@ function updateSurvivalPassButton() {
   } else {
     dom['pass-btn'].disabled = false;
     dom['pass-btn'].textContent = 'Reveal next clue';
+  }
+}
+
+function updateTimedPassButton() {
+  if (timedProgress.clueIndex >= CONFIG.timedMaxClues) {
+    dom['pass-btn'].disabled = true;
+    dom['pass-btn'].textContent = 'No more clues';
+  } else {
+    dom['pass-btn'].disabled = timedProgress.timeLeft <= CONFIG.timedCluePenalty;
+    dom['pass-btn'].textContent = `Reveal next clue (−${CONFIG.timedCluePenalty}s)`;
   }
 }
 
@@ -511,6 +661,44 @@ function handleSurvivalGuessSubmit() {
   dom['guess-input'].select();
 }
 
+function handleTimedGuessSubmit() {
+  if (!timedProgress.running) return;
+  const raw = dom['guess-input'].value;
+  if (!raw.trim()) return;
+  const player = timedCurrentPlayer();
+  if (!player) return;
+
+  if (isCorrectGuess(raw, player, PLAYERS)) {
+    timedProgress.solved += 1;
+    dom['guess-input'].value = '';
+    showFeedback('', '');
+    dom['puzzle-number'].textContent = `Correct ${timedProgress.solved} · Best ${timedBest}`;
+
+    stopTimedTimer();
+    setGameControlsEnabled(false);
+    dom['pass-btn'].disabled = true;
+    dom['clue-list'].innerHTML = '';
+    showSurvivalReveal(player, 'Correct! Next clock: 30s');
+
+    clearSurvivalReveal();
+    survivalRevealTimer = setTimeout(() => {
+      survivalRevealTimer = null;
+      hideSurvivalReveal();
+      loadNextTimedPlayer();
+      if (gameMode === 'timed') {
+        showFeedback('', '');
+        renderTimedGameScreen();
+        startTimedTimer();
+        dom['guess-input'].focus();
+      }
+    }, SURVIVAL_REVEAL_MS);
+    return;
+  }
+
+  showFeedback('Not quite — try again or reveal another clue.', 'wrong');
+  dom['guess-input'].select();
+}
+
 function handleSurvivalPass() {
   if (!survivalProgress.running) return;
   if (survivalProgress.clueIndex >= CONFIG.survivalMaxClues) return;
@@ -518,6 +706,21 @@ function handleSurvivalPass() {
   showFeedback('', '');
   renderSurvivalClueList();
   updateSurvivalPassButton();
+}
+
+function handleTimedPass() {
+  if (!timedProgress.running) return;
+  if (timedProgress.clueIndex >= CONFIG.timedMaxClues) return;
+  timedProgress.timeLeft = clampSurvivalTime(timedProgress.timeLeft - CONFIG.timedCluePenalty);
+  updateTimedTimeDisplay();
+  if (timedProgress.timeLeft <= 0) {
+    endTimedRun();
+    return;
+  }
+  timedProgress.clueIndex += 1;
+  showFeedback(`−${CONFIG.timedCluePenalty}s`, 'wrong');
+  renderTimedClueList();
+  updateTimedPassButton();
 }
 
 function handleSurvivalSkip() {
@@ -554,6 +757,11 @@ function handleSurvivalSkip() {
   }, SURVIVAL_REVEAL_MS);
 }
 
+function handleTimedEndRun() {
+  if (!timedProgress.running) return;
+  endTimedRun();
+}
+
 function renderSurvivalResult() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
@@ -574,8 +782,39 @@ function renderSurvivalResult() {
   dom['player-photo'].removeAttribute('src');
   dom['player-photo-placeholder'].textContent = '⚾';
   dom['player-photo-placeholder'].classList.remove('hidden', 'initials');
+  dom['survival-again-btn'].textContent = 'Play Again';
   dom['survival-again-btn'].classList.remove('hidden');
   dom['next-puzzle-timer'].textContent = 'Survival mode has no daily limit.';
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+}
+
+function renderTimedResult() {
+  dom['game-screen'].classList.add('hidden');
+  dom['result-screen'].classList.remove('hidden');
+  dom['puzzle-number'].textContent = `Timed Best: ${timedBest} correct`;
+
+  const isNewBest = timedProgress.solved > 0 && timedProgress.solved >= timedBest;
+  dom['result-title'].textContent = "Time's up!";
+  dom['result-player'].textContent = `You got ${timedProgress.solved} player${timedProgress.solved === 1 ? '' : 's'} correct in Timed mode.`;
+  dom['result-score'].textContent = `${timedProgress.solved} correct`;
+  dom['result-grid'].textContent = timedProgress.solved > 0 ? '⚾'.repeat(Math.min(10, timedProgress.solved)) : '❌';
+  dom['result-summary'].innerHTML = `
+    <div class="recap-stat"><span>This run</span><strong>${timedProgress.solved}</strong><em>Players correct</em></div>
+    <div class="recap-stat"><span>Best run</span><strong>${timedBest}</strong><em>${isNewBest ? 'New best!' : 'Personal best'}</em></div>
+    <div class="recap-clue"><span>Rules</span><strong>30 seconds per player</strong><em>Each extra clue costs ${CONFIG.timedCluePenalty} seconds</em></div>
+  `;
+  dom['result-clues'].innerHTML = '';
+  dom['player-photo-wrap'].classList.remove('photo-win', 'photo-loss');
+  dom['player-photo'].classList.remove('loaded');
+  dom['player-photo'].removeAttribute('src');
+  dom['player-photo-placeholder'].textContent = '⏲️';
+  dom['player-photo-placeholder'].classList.remove('hidden', 'initials');
+  dom['survival-again-btn'].textContent = 'Play Again';
+  dom['survival-again-btn'].classList.remove('hidden');
+  dom['next-puzzle-timer'].textContent = 'Timed mode has no daily limit.';
   if (countdownTimer) {
     clearInterval(countdownTimer);
     countdownTimer = null;
@@ -590,6 +829,7 @@ function renderHome() {
   dom['result-screen'].classList.add('hidden');
   dom['home-daily-meta'].textContent = `Puzzle #${today.puzzleNumber}${progress.finished ? ' · Completed' : ''}`;
   dom['home-survival-meta'].textContent = `Best: ${survivalBest} solved`;
+  dom['home-timed-meta'].textContent = `Best: ${timedBest} correct`;
 }
 
 function setMode(mode) {
@@ -597,6 +837,7 @@ function setMode(mode) {
   gameMode = mode;
   hideSurvivalReveal(); // in case a survival reveal was mid-flight when the mode changed
   stopSurvivalTimer(); // always pause survival's clock when leaving its screen; restarted below if entering it running
+  stopTimedTimer(); // same idea for timed mode
 
   if (mode === 'home') {
     renderHome();
@@ -618,12 +859,24 @@ function setMode(mode) {
     } else {
       renderSurvivalLanding();
     }
+  } else if (mode === 'timed') {
+    dom['intro-title'].textContent = 'Beat the 30-second clock.';
+    dom['intro-copy'].textContent = 'Each player starts with 30 seconds and 3 clues. Revealing a clue costs 5 seconds. Correct answers reset the clock.';
+    if (timedProgress.running) {
+      startTimedTimer();
+      renderTimedGameScreen();
+    } else if (timedProgress.finished) {
+      renderTimedResult();
+    } else {
+      renderTimedLanding();
+    }
   } else {
     dom['intro-title'].textContent = "Guess today's mystery MLB player.";
     dom['intro-copy'].textContent = 'Use the clues to name the player. The opener is intentionally tough, so a 100-point solve should feel rare.';
     dom['score-label'].textContent = 'Score';
     dom['giveup-btn'].textContent = 'Give up';
     dom['survival-start-btn'].classList.add('hidden');
+    dom['survival-start-btn'].textContent = 'Start Survival Run';
     dom['guess-form'].classList.remove('hidden');
     dom['action-row'].classList.remove('hidden');
     renderPuzzleMeta();
@@ -860,6 +1113,80 @@ async function buildSurvivalShareImageFile() {
   return new File([blob], `dinger-survival-${survivalProgress.solved}.png`, { type: 'image/png' });
 }
 
+async function buildTimedShareImageFile() {
+  const size = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const link = gameShareUrl();
+  const isNewBest = timedProgress.solved > 0 && timedProgress.solved >= timedBest;
+  const bestText = isNewBest ? 'New personal best!' : `Best run: ${timedBest} correct`;
+
+  const bg = ctx.createLinearGradient(0, 0, size, size);
+  bg.addColorStop(0, '#041226');
+  bg.addColorStop(0.55, '#0b2447');
+  bg.addColorStop(1, '#12386a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.fillStyle = 'rgba(191, 13, 62, 0.92)';
+  ctx.beginPath();
+  ctx.moveTo(0, 790);
+  ctx.bezierCurveTo(190, 710, 350, 710, 540, 790);
+  ctx.bezierCurveTo(730, 710, 890, 710, 1080, 790);
+  ctx.lineTo(1080, 1080);
+  ctx.lineTo(0, 1080);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(245, 248, 255, 0.72)';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(0, 825);
+  ctx.bezierCurveTo(190, 745, 350, 745, 540, 825);
+  ctx.bezierCurveTo(730, 745, 890, 745, 1080, 825);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(245, 248, 255, 0.08)';
+  for (let i = 0; i < 12; i += 1) {
+    ctx.fillRect(i * 110 - 40, 0, 4, 1080);
+  }
+
+  roundRect(ctx, 90, 110, 900, 760, 36);
+  ctx.fillStyle = 'rgba(7, 27, 54, 0.92)';
+  ctx.fill();
+  ctx.strokeStyle = '#2a5f9e';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  drawCenteredText(ctx, 'DINGER', 540, 210, 760, 108, 'Arial, sans-serif', '#f5f8ff');
+  ctx.fillStyle = '#bf0d3e';
+  ctx.font = '800 30px Arial, sans-serif';
+  ctx.fillText('TIMED MODE', 540, 292);
+
+  ctx.fillStyle = '#f5f8ff';
+  ctx.font = '900 150px Arial, sans-serif';
+  ctx.fillText(`${timedProgress.solved}`, 540, 460);
+  ctx.fillStyle = '#a9bdd8';
+  ctx.font = '800 34px Arial, sans-serif';
+  ctx.fillText('PLAYERS CORRECT', 540, 550);
+
+  ctx.fillStyle = isNewBest ? '#f5f8ff' : '#e83a59';
+  ctx.font = '800 40px Arial, sans-serif';
+  ctx.fillText(bestText, 540, 636);
+
+  ctx.fillStyle = '#d8e8ff';
+  ctx.font = '700 30px Arial, sans-serif';
+  ctx.fillText('Play at', 540, 790);
+  drawCenteredText(ctx, link, 540, 835, 760, 34, 'Arial, sans-serif', '#f5f8ff');
+
+  const blob = await canvasToBlob(canvas);
+  return new File([blob], `dinger-timed-${timedProgress.solved}.png`, { type: 'image/png' });
+}
+
 function renderResultScreen() {
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.remove('hidden');
@@ -923,6 +1250,10 @@ function handleGuessSubmit(e) {
     handleSurvivalGuessSubmit();
     return;
   }
+  if (gameMode === 'timed') {
+    handleTimedGuessSubmit();
+    return;
+  }
   if (progress.finished) return;
   const raw = dom['guess-input'].value;
   if (!raw.trim()) return;
@@ -945,6 +1276,10 @@ function handlePass() {
     handleSurvivalPass();
     return;
   }
+  if (gameMode === 'timed') {
+    handleTimedPass();
+    return;
+  }
   if (progress.finished) return;
   const max = maxCluesFor(today.player);
   if (progress.clueIndex >= max) return;
@@ -961,12 +1296,20 @@ function handleGiveUp() {
     handleSurvivalSkip();
     return;
   }
+  if (gameMode === 'timed') {
+    handleTimedEndRun();
+    return;
+  }
   if (progress.finished) return;
   finalize(false);
 }
 
 function buildSurvivalShareText() {
   return `⚾ Dinger Survival — ${survivalProgress.solved} solved (best: ${survivalBest})`;
+}
+
+function buildTimedShareText() {
+  return `⚾ Dinger Timed — ${timedProgress.solved} correct (best: ${timedBest})`;
 }
 
 async function handleSurvivalShare() {
@@ -1034,9 +1377,78 @@ async function handleSurvivalShare() {
   resetShareButtonSoon();
 }
 
+async function handleTimedShare() {
+  const text = buildTimedShareText();
+  const url = gameShareUrl();
+  let imageFile = null;
+  dom['share-btn'].disabled = true;
+  dom['share-btn'].textContent = 'Preparing...';
+
+  try {
+    imageFile = await buildTimedShareImageFile();
+  } catch {
+    imageFile = null;
+  }
+
+  dom['share-btn'].disabled = false;
+
+  const shareData = {
+    title: 'Dinger Timed',
+    text: `${text}\n${url}`,
+    url,
+  };
+  const imageShareData = imageFile
+    ? { title: shareData.title, text: shareData.text, files: [imageFile] }
+    : null;
+
+  if (imageShareData && navigator.share && (!navigator.canShare || navigator.canShare(imageShareData))) {
+    try {
+      await navigator.share(imageShareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
+      }
+    }
+    return;
+  }
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+    try {
+      await navigator.share(shareData);
+      dom['share-btn'].textContent = 'Shared!';
+      resetShareButtonSoon();
+    } catch (err) {
+      if (err && err.name !== 'AbortError') {
+        dom['share-btn'].textContent = 'Share failed';
+        resetShareButtonSoon();
+      } else {
+        dom['share-btn'].textContent = 'Share Result';
+      }
+    }
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${text}\n${url}`);
+    dom['share-btn'].textContent = imageFile ? 'Copied link!' : 'Copied result!';
+  } catch {
+    dom['share-btn'].textContent = `${text} ${url}`;
+  }
+  resetShareButtonSoon();
+}
+
 async function handleShare() {
   if (gameMode === 'survival') {
     await handleSurvivalShare();
+    return;
+  }
+  if (gameMode === 'timed') {
+    await handleTimedShare();
     return;
   }
   const text = buildShareText();
@@ -1209,16 +1621,25 @@ function showFirstRunHelp() {
   }
 }
 
+function handleModeStart() {
+  if (gameMode === 'timed') {
+    startTimedRun();
+  } else {
+    startSurvivalRun();
+  }
+}
+
 function attachEvents() {
   dom['guess-form'].addEventListener('submit', handleGuessSubmit);
   dom['pass-btn'].addEventListener('click', handlePass);
   dom['giveup-btn'].addEventListener('click', handleGiveUp);
   dom['share-btn'].addEventListener('click', handleShare);
-  dom['survival-start-btn'].addEventListener('click', startSurvivalRun);
-  dom['survival-again-btn'].addEventListener('click', startSurvivalRun);
+  dom['survival-start-btn'].addEventListener('click', handleModeStart);
+  dom['survival-again-btn'].addEventListener('click', handleModeStart);
   dom['home-btn'].addEventListener('click', () => setMode('home'));
   dom['home-daily-btn'].addEventListener('click', () => setMode('daily'));
   dom['home-survival-btn'].addEventListener('click', () => setMode('survival'));
+  dom['home-timed-btn'].addEventListener('click', () => setMode('timed'));
 
   dom['stats-btn'].addEventListener('click', () => { renderStats(); toggleModal(dom['stats-modal'], true, dom['stats-btn']); });
   dom['close-stats'].addEventListener('click', () => toggleModal(dom['stats-modal'], false));
@@ -1242,6 +1663,7 @@ function init() {
   today = getPuzzleForDate(currentDateStr);
   progress = loadProgress(currentDateStr) || defaultProgress();
   survivalBest = loadSurvivalBest();
+  timedBest = loadTimedBest();
 
   attachEvents();
   setMode('home');

@@ -10,6 +10,9 @@ const CONFIG = {
   survivalMaxClues: 3,
   survivalSkipPenalty: 3,
   survivalClueBonus: [5, 3, 1], // bonus seconds indexed by (cluesRevealed - 1)
+  timedStartTime: 30,
+  timedMaxClues: 3,
+  timedCluePenalty: 5,
 };
 
 function todayDateStr(d = new Date()) {
@@ -91,6 +94,10 @@ function getCluesForPlayer(player) {
 // context and wouldn't make sense read out of order).
 function getSurvivalCluesForPlayer(player) {
   return player.survivalClues.slice(0, CONFIG.survivalMaxClues);
+}
+
+function getTimedCluesForPlayer(player) {
+  return player.survivalClues.slice(0, CONFIG.timedMaxClues);
 }
 
 function survivalBonusForClueCount(cluesRevealed) {

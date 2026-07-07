@@ -14,7 +14,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BE%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 </head>
 <body>
 <div class="app">
@@ -44,6 +44,14 @@
         <span class="home-mode-title">Survival</span>
         <span class="home-mode-desc">Race the clock and solve as many players as you can.</span>
         <span id="home-survival-meta" class="home-mode-meta">Best: 0 solved</span>
+      </span>
+    </button>
+    <button id="home-timed-btn" class="home-mode-card" type="button">
+      <span class="home-mode-icon" aria-hidden="true">⏲️</span>
+      <span class="home-mode-copy">
+        <span class="home-mode-title">Timed</span>
+        <span class="home-mode-desc">Thirty seconds per player. Correct answers reset the clock.</span>
+        <span id="home-timed-meta" class="home-mode-meta">Best: 0 correct</span>
       </span>
     </button>
   </section>
@@ -165,12 +173,22 @@
           <li>The run ends when the clock hits zero.</li>
         </ul>
       </div>
+      <div class="help-section">
+        <h3>Timed Mode</h3>
+        <ul class="help-list">
+          <li>You get 30 seconds for each player.</li>
+          <li>Each player has 3 clues.</li>
+          <li>Revealing another clue costs 5 seconds.</li>
+          <li>A correct answer starts the next player with a fresh 30-second clock.</li>
+          <li>The run ends when time runs out on a player.</li>
+        </ul>
+      </div>
       <button id="close-help-2" class="primary-btn">Play</button>
     </div>
   </section>
 </div>
 <script src="players.js?v=26" defer></script>
-<script src="game.js?v=26" defer></script>
-<script src="app.js?v=27" defer></script>
+<script src="game.js?v=28" defer></script>
+<script src="app.js?v=28" defer></script>
 </body>
 </html>
