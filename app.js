@@ -332,6 +332,7 @@ function clearSurvivalReveal() {
 
 function hideSurvivalReveal() {
   dom['survival-reveal-overlay'].classList.add('hidden');
+  dom['survival-reveal-overlay'].classList.remove('survival-reveal-skip');
   dom['survival-reveal-photo'].classList.remove('loaded');
   dom['survival-reveal-photo'].removeAttribute('src');
   dom['survival-reveal-placeholder'].textContent = '⚾';
@@ -340,13 +341,14 @@ function hideSurvivalReveal() {
   dom['survival-reveal-bonus'].textContent = '';
 }
 
-// Pops up the just-solved player's photo + name in an overlay above the
+// Pops up the just-finished player's photo + name in an overlay above the
 // game. Fetches asynchronously; if a later reveal has already replaced this
 // one (name text moved on) by the time the fetch resolves, it's a no-op.
-async function showSurvivalReveal(player, bonus) {
+async function showSurvivalReveal(player, detailText, tone = 'correct') {
   dom['survival-reveal-overlay'].classList.remove('hidden');
+  dom['survival-reveal-overlay'].classList.toggle('survival-reveal-skip', tone === 'skip');
   dom['survival-reveal-name'].textContent = player.name;
-  dom['survival-reveal-bonus'].textContent = `Correct! +${bonus}s`;
+  dom['survival-reveal-bonus'].textContent = detailText;
   dom['survival-reveal-photo'].classList.remove('loaded');
   dom['survival-reveal-photo'].removeAttribute('src');
   dom['survival-reveal-placeholder'].textContent = '⚾';
@@ -488,7 +490,7 @@ function handleSurvivalGuessSubmit() {
     setGameControlsEnabled(false);
     dom['pass-btn'].disabled = true;
     dom['clue-list'].innerHTML = '';
-    showSurvivalReveal(player, bonus);
+    showSurvivalReveal(player, `Correct! +${bonus}s`);
 
     clearSurvivalReveal();
     survivalRevealTimer = setTimeout(() => {
@@ -520,15 +522,36 @@ function handleSurvivalPass() {
 
 function handleSurvivalSkip() {
   if (!survivalProgress.running) return;
+  const skippedPlayer = survivalCurrentPlayer();
+  if (!skippedPlayer) return;
+
   survivalProgress.timeLeft = clampSurvivalTime(survivalProgress.timeLeft - CONFIG.survivalSkipPenalty);
   updateSurvivalTimeDisplay();
-  if (survivalProgress.timeLeft <= 0) {
-    endSurvivalRun();
-    return;
-  }
   showFeedback(`Skipped −${CONFIG.survivalSkipPenalty}s`, 'wrong');
-  loadNextSurvivalPlayer();
-  renderSurvivalGameScreen();
+
+  // Pause the clock while the skipped player's answer is shown, mirroring
+  // the correct-answer reveal so the answer flash does not cost run time.
+  stopSurvivalTimer();
+  setGameControlsEnabled(false);
+  dom['pass-btn'].disabled = true;
+  dom['clue-list'].innerHTML = '';
+  showSurvivalReveal(skippedPlayer, `Skipped −${CONFIG.survivalSkipPenalty}s`, 'skip');
+
+  clearSurvivalReveal();
+  survivalRevealTimer = setTimeout(() => {
+    survivalRevealTimer = null;
+    hideSurvivalReveal();
+    if (gameMode !== 'survival') return;
+    if (survivalProgress.timeLeft <= 0) {
+      endSurvivalRun();
+      return;
+    }
+    loadNextSurvivalPlayer();
+    showFeedback('', '');
+    renderSurvivalGameScreen();
+    startSurvivalTimer();
+    dom['guess-input'].focus();
+  }, SURVIVAL_REVEAL_MS);
 }
 
 function renderSurvivalResult() {

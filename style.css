@@ -622,6 +622,20 @@ h1 .ball {
   animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+.survival-reveal-overlay.survival-reveal-skip .survival-reveal-card {
+  border-color: var(--red-dim);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(232, 58, 89, 0.18);
+}
+
+.survival-reveal-overlay.survival-reveal-skip .result-photo-ring {
+  border-color: var(--red);
+  box-shadow: 0 0 0 4px rgba(232, 58, 89, 0.18), 0 10px 24px -8px rgba(0, 0, 0, 0.6);
+}
+
+.survival-reveal-overlay.survival-reveal-skip .survival-reveal-bonus {
+  color: var(--red);
+}
+
 @keyframes pop-in {
   from { opacity: 0; transform: scale(0.85); }
   to { opacity: 1; transform: scale(1); }
