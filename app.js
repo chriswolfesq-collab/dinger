@@ -137,7 +137,7 @@ function cacheDom() {
     'result-summary', 'share-btn', 'next-puzzle-timer', 'stats-modal', 'stats-grid', 'help-modal',
     'stats-btn', 'help-btn', 'close-stats', 'close-stats-2', 'close-help', 'close-help-2',
     'player-photo-wrap', 'player-photo', 'player-photo-placeholder',
-    'survival-start-btn', 'survival-again-btn', 'intro-title', 'intro-copy', 'action-row', 'game-intro',
+    'survival-start-btn', 'survival-again-btn', 'intro-title', 'intro-copy', 'action-row', 'game-intro', 'mode-menu-btn',
     'survival-reveal-overlay', 'survival-reveal-photo', 'survival-reveal-placeholder', 'survival-reveal-name', 'survival-reveal-bonus',
     'home-btn', 'home-screen', 'home-daily-btn', 'home-survival-btn', 'home-timed-btn', 'home-daily-meta', 'home-survival-meta', 'home-timed-meta',
   ].forEach(id => { dom[id] = document.getElementById(id); });
@@ -460,29 +460,55 @@ function startTimedRun() {
   dom['guess-input'].focus();
 }
 
-function endSurvivalRun() {
+function endSurvivalRun(showFinalReveal = true) {
   clearSurvivalReveal();
-  hideSurvivalReveal();
   stopSurvivalTimer();
+  const finalPlayer = survivalCurrentPlayer();
   survivalProgress.running = false;
   survivalProgress.finished = true;
   if (survivalProgress.solved > survivalBest) {
     survivalBest = survivalProgress.solved;
     saveSurvivalBest(survivalBest);
   }
+  if (showFinalReveal && finalPlayer) {
+    setGameControlsEnabled(false);
+    dom['pass-btn'].disabled = true;
+    dom['clue-list'].innerHTML = '';
+    showSurvivalReveal(finalPlayer, "Time's up", 'skip');
+    survivalRevealTimer = setTimeout(() => {
+      survivalRevealTimer = null;
+      hideSurvivalReveal();
+      if (gameMode === 'survival') renderSurvivalResult();
+    }, SURVIVAL_REVEAL_MS);
+    return;
+  }
+  hideSurvivalReveal();
   renderSurvivalResult();
 }
 
-function endTimedRun() {
+function endTimedRun(showFinalReveal = true) {
   clearSurvivalReveal();
-  hideSurvivalReveal();
   stopTimedTimer();
+  const finalPlayer = timedCurrentPlayer();
   timedProgress.running = false;
   timedProgress.finished = true;
   if (timedProgress.solved > timedBest) {
     timedBest = timedProgress.solved;
     saveTimedBest(timedBest);
   }
+  if (showFinalReveal && finalPlayer) {
+    setGameControlsEnabled(false);
+    dom['pass-btn'].disabled = true;
+    dom['clue-list'].innerHTML = '';
+    showSurvivalReveal(finalPlayer, "Time's up", 'skip');
+    survivalRevealTimer = setTimeout(() => {
+      survivalRevealTimer = null;
+      hideSurvivalReveal();
+      if (gameMode === 'timed') renderTimedResult();
+    }, SURVIVAL_REVEAL_MS);
+    return;
+  }
+  hideSurvivalReveal();
   renderTimedResult();
 }
 
@@ -746,7 +772,7 @@ function handleSurvivalSkip() {
     hideSurvivalReveal();
     if (gameMode !== 'survival') return;
     if (survivalProgress.timeLeft <= 0) {
-      endSurvivalRun();
+      endSurvivalRun(false);
       return;
     }
     loadNextSurvivalPlayer();
@@ -759,7 +785,7 @@ function handleSurvivalSkip() {
 
 function handleTimedEndRun() {
   if (!timedProgress.running) return;
-  endTimedRun();
+  endTimedRun(false);
 }
 
 function renderSurvivalResult() {
@@ -825,6 +851,7 @@ function renderHome() {
   dom['home-screen'].classList.remove('hidden');
   dom['puzzle-number'].classList.add('hidden');
   dom['game-intro'].classList.add('hidden');
+  dom['mode-menu-btn'].classList.add('hidden');
   dom['game-screen'].classList.add('hidden');
   dom['result-screen'].classList.add('hidden');
   dom['home-daily-meta'].textContent = `Puzzle #${today.puzzleNumber}${progress.finished ? ' · Completed' : ''}`;
@@ -835,6 +862,7 @@ function renderHome() {
 function setMode(mode) {
   if (mode === gameMode) return;
   gameMode = mode;
+  clearSurvivalReveal();
   hideSurvivalReveal(); // in case a survival reveal was mid-flight when the mode changed
   stopSurvivalTimer(); // always pause survival's clock when leaving its screen; restarted below if entering it running
   stopTimedTimer(); // same idea for timed mode
@@ -847,6 +875,7 @@ function setMode(mode) {
   dom['home-screen'].classList.add('hidden');
   dom['puzzle-number'].classList.remove('hidden');
   dom['game-intro'].classList.remove('hidden');
+  dom['mode-menu-btn'].classList.remove('hidden');
 
   if (mode === 'survival') {
     dom['intro-title'].textContent = 'Survive the mystery-player gauntlet.';
@@ -1640,6 +1669,7 @@ function attachEvents() {
   dom['home-daily-btn'].addEventListener('click', () => setMode('daily'));
   dom['home-survival-btn'].addEventListener('click', () => setMode('survival'));
   dom['home-timed-btn'].addEventListener('click', () => setMode('timed'));
+  dom['mode-menu-btn'].addEventListener('click', () => setMode('home'));
 
   dom['stats-btn'].addEventListener('click', () => { renderStats(); toggleModal(dom['stats-modal'], true, dom['stats-btn']); });
   dom['close-stats'].addEventListener('click', () => toggleModal(dom['stats-modal'], false));

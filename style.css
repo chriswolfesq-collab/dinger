@@ -253,6 +253,32 @@ h1 .ball {
   line-height: 1.45;
 }
 
+.mode-menu-btn {
+  display: block;
+  width: max-content;
+  margin: -6px auto 16px;
+  padding: 9px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(42, 95, 158, 0.9);
+  background: rgba(7, 27, 54, 0.82);
+  color: var(--blue-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mode-menu-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-soft);
+  transform: translateY(-1px);
+}
+
+.mode-menu-btn:active { transform: translateY(0); }
+
 .mystery-player {
   display: flex;
   align-items: center;
