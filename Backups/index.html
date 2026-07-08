@@ -14,7 +14,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%BE%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=29">
 </head>
 <body>
 <div class="app">
@@ -23,7 +23,6 @@
       <h1><span class="ball">⚾</span> DINGER</h1>
     </button>
     <div class="header-actions">
-      <a class="dashboard-link" href="https://chriswolfesq-collab.github.io/dashboard/" aria-label="Back to Wolf Games dashboard">Wolf Games</a>
       <button id="stats-btn" class="icon-btn" title="Stats">📊</button>
       <button id="help-btn" class="icon-btn" title="How to play">?</button>
     </div>
@@ -51,16 +50,8 @@
       <span class="home-mode-icon" aria-hidden="true">⏲️</span>
       <span class="home-mode-copy">
         <span class="home-mode-title">Timed</span>
-        <span class="home-mode-desc">Forty-five seconds per player. Correct answers reset the clock.</span>
+        <span class="home-mode-desc">Thirty seconds per player. Correct answers reset the clock.</span>
         <span id="home-timed-meta" class="home-mode-meta">Best: 0 correct</span>
-      </span>
-    </button>
-    <button id="home-photoblitz-btn" class="home-mode-card" type="button">
-      <span class="home-mode-icon" aria-hidden="true">📸</span>
-      <span class="home-mode-copy">
-        <span class="home-mode-title">Photo Blitz</span>
-        <span class="home-mode-desc">Sixty seconds. Name every player you can from their photo. Skip freely.</span>
-        <span id="home-photoblitz-meta" class="home-mode-meta">Best: 0 named</span>
       </span>
     </button>
   </section>
@@ -75,7 +66,7 @@
   <button id="mode-menu-btn" class="mode-menu-btn hidden" type="button">Main Menu</button>
 
   <main id="game-screen" class="hidden">
-    <section id="mystery-player" class="mystery-player" aria-label="Mystery player">
+    <section class="mystery-player" aria-label="Mystery player">
       <div class="mystery-photo" aria-hidden="true">
         <span>?</span>
       </div>
@@ -91,13 +82,6 @@
     </div>
 
     <ol id="clue-list" class="clue-list"></ol>
-
-    <div id="photo-blitz-photo-wrap" class="photo-blitz-photo-wrap hidden">
-      <div class="photo-blitz-photo-ring">
-        <img id="photo-blitz-photo" class="result-photo" alt="" />
-        <span id="photo-blitz-placeholder" class="result-photo-placeholder">⚾</span>
-      </div>
-    </div>
 
     <button id="survival-start-btn" class="primary-btn survival-start hidden" type="button">Start Survival Run</button>
 
@@ -140,8 +124,6 @@
     <div id="result-summary" class="result-summary" aria-label="Game recap"></div>
 
     <ol id="result-clues" class="clue-list result-clue-list"></ol>
-
-    <div id="result-skipped" class="result-skipped hidden"></div>
 
     <button id="survival-again-btn" class="primary-btn hidden" type="button">Play Again</button>
     <button id="share-btn" class="primary-btn">Share Result</button>
@@ -186,7 +168,7 @@
       <div class="help-section">
         <h3>Survival Mode</h3>
         <ul class="help-list">
-          <li>You start with 60 seconds and face an endless stream of players.</li>
+          <li>You start with 30 seconds and face an endless stream of players.</li>
           <li>Each player gives you at most 3 clues.</li>
           <li>Solve on clue 1 for +5s, clue 2 for +3s, clue 3 for +1s.</li>
           <li>Skipping a player costs 3 seconds.</li>
@@ -196,33 +178,19 @@
       <div class="help-section">
         <h3>Timed Mode</h3>
         <ul class="help-list">
-          <li>You get 45 seconds for each player.</li>
+          <li>You get 30 seconds for each player.</li>
           <li>Each player has 3 clues.</li>
           <li>Revealing another clue costs 5 seconds.</li>
-          <li>A correct answer starts the next player with a fresh 45-second clock.</li>
+          <li>A correct answer starts the next player with a fresh 30-second clock.</li>
           <li>The run ends when time runs out on a player.</li>
-        </ul>
-      </div>
-      <div class="help-section">
-        <h3>Photo Blitz Mode</h3>
-        <ul class="help-list">
-          <li>You get 60 seconds and unlimited free skips.</li>
-          <li>No clues — just a player's photo. Type who it is.</li>
-          <li>Skipping shows the answer, but that pause never costs you time.</li>
-          <li>Only color photos appear, except for a few legends whose only available photo is black-and-white.</li>
-          <li>The run ends when the clock hits zero.</li>
         </ul>
       </div>
       <button id="close-help-2" class="primary-btn">Play</button>
     </div>
   </section>
 </div>
-<script src="players.js?v=36" defer></script>
-<script src="game.js?v=36" defer></script>
-<script src="storage.js?v=36" defer></script>
-<script src="photos.js?v=36" defer></script>
-<script src="share.js?v=36" defer></script>
-<script src="modals.js?v=36" defer></script>
-<script src="app.js?v=36" defer></script>
+<script src="players.js?v=31" defer></script>
+<script src="game.js?v=29" defer></script>
+<script src="app.js?v=31" defer></script>
 </body>
 </html>

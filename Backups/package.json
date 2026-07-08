@@ -1,0 +1,10 @@
+{
+  "name": "dinger",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dinger — Daily MLB Player Guessing Game",
+  "scripts": {
+    "test": "node --test",
+    "bump-version": "node scripts/bump-version.mjs"
+  }
+}
